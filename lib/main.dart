@@ -66,3 +66,4 @@ class AuthGate extends StatelessWidget {
     return const LoginScreen();
   }
 }
+

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityBus Go — Live Interactive Simulator</title>
+  <style>
+    :root {
+      --primary: #1e88e5;
+      --primary-dark: #0d47a1;
+      --accent-green: #43a047;
+      --occupied-red: #e53935;
+      --selected: #29b6f6;
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #121824; color: #333; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+    
+    .header-bar { color: white; text-align: center; margin-bottom: 20px; }
+    .header-bar h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .header-bar p { color: #90caf9; font-size: 14px; margin-top: 4px; }
+
+    .app-viewport {
+      width: 420px;
+      height: 840px;
+      background: var(--surface);
+      border-radius: 36px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 0 10px #2a3447;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Phone Bar */
+    .status-bar {
+      height: 28px;
+      background: var(--primary-dark);
+      color: white;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 18px;
+    }
+
+    /* App Nav Header */
+    .app-header {
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .app-header h2 { font-size: 18px; font-weight: 600; }
+    .role-badge {
+      background: rgba(255,255,255,0.25);
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* Main Container Views */
+    .screen { display: none; flex: 1; flex-direction: column; overflow-y: auto; padding: 18px; }
+    .screen.active { display: flex; }
+
+    /* Auth Screens */
+    .auth-box { text-align: center; margin-top: 40px; }
+    .bus-icon { font-size: 56px; color: var(--primary); margin-bottom: 12px; }
+    .form-group { text-align: left; margin-bottom: 14px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 12px; border: 1px solid #cfd8dc; border-radius: 8px; font-size: 14px;
+    }
+    .btn {
+      width: 100%; padding: 13px; border: none; border-radius: 8px; font-weight: 700;
+      cursor: pointer; font-size: 15px; transition: opacity 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-outline { background: white; border: 1px solid var(--primary); color: var(--primary); margin-top: 8px; }
+
+    /* Seat Grid UI */
+    .bus-info-card {
+      background: #e3f2fd; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .legend {
+      display: flex; justify-content: space-around; margin-bottom: 12px; font-size: 12px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 4px; }
+    .dot-free { background: var(--accent-green); }
+    .dot-taken { background: var(--occupied-red); }
+    .dot-selected { background: var(--selected); }
+
+    .seat-grid-container {
+      background: #fafafa; border: 2px dashed #b0bec5; border-radius: 16px; padding: 14px;
+      flex: 1; overflow-y: auto;
+    }
+    .driver-row {
+      text-align: right; margin-bottom: 12px; font-size: 12px; font-weight: bold; color: #607d8b;
+    }
+    .seat-row {
+      display: grid; grid-template-columns: 1fr 1fr 20px 1fr 1fr; gap: 8px; margin-bottom: 8px;
+    }
+    .seat {
+      background: var(--accent-green); color: white; border-radius: 6px; padding: 10px 0;
+      text-align: center; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none;
+    }
+    .seat.taken { background: var(--occupied-red); cursor: not-allowed; }
+    .seat.selected { background: var(--selected); outline: 3px solid #0288d1; }
+    .aisle { }
+
+    /* Confirmation Modal / Bottom Sheet */
+    .checkout-sheet {
+      background: white; border-top: 1px solid #e0e0e0; padding: 16px; border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+    }
+    .ticket-summary { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
+
+    /* Ticket Receipt */
+    .ticket-card {
+      background: #fff8e1; border: 2px solid #ffe082; border-radius: 16px; padding: 20px;
+      text-align: center; margin-top: 20px; position: relative;
+    }
+    .ticket-title { font-size: 18px; font-weight: bold; color: #ff8f00; margin-bottom: 10px; }
+    .qr-mock {
+      width: 130px; height: 130px; background: #37474f; margin: 15px auto; border-radius: 8px;
+      display: flex; justify-content: center; align-items: center; color: white; font-size: 11px;
+    }
+
+    /* GPS Telemetry screen */
+    .telemetry-card {
+      background: #eceff1; border-radius: 12px; padding: 16px; margin-top: 15px; font-family: monospace;
+    }
+    .telemetry-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>CityBus Go — University Group Project</h1>
+    <p>Real-Time Bus Ticket Issuing & Seat Availability System (Full Interactive Simulator)</p>
+  </div>
+
+  <div class="app-viewport">
+    <div class="status-bar">
+      <span>09:41</span>
+      <span>4G • 98%</span>
+    </div>
+
+    <div class="app-header">
+      <h2 id="headerTitle">CityBus Go</h2>
+      <span class="role-badge" id="roleBadge">Demo</span>
+    </div>
+
+    <!-- 1. LOGIN / ROLE SCREEN -->
+    <div class="screen active" id="authScreen">
+      <div class="auth-box">
+        <div class="bus-icon">🚌</div>
+        <h2 style="margin-bottom: 6px;">Welcome Aboard</h2>
+        <p style="color: #666; font-size: 13px; margin-bottom: 24px;">Select your mode to test the system live</p>
+        
+        <div class="form-group">
+          <label>Account Mode / Role</label>
+          <select id="userRoleSelect">
+            <option value="passenger">Passenger Mode (Search & Buy Seat)</option>
+            <option value="conductor">Conductor Mode (Issue Tickets & Manage)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="userNameInput" value="Alex Fernando">
+        </div>
+
+        <button class="btn btn-primary" onclick="handleAuth()">ENTER APPLICATION</button>
+      </div>
+    </div>
+
+    <!-- 2. PASSENGER SEARCH SCREEN -->
+    <div class="screen" id="passengerSearchScreen">
+      <h3 style="margin-bottom: 12px;">Find Active Bus</h3>
+      <div class="form-group">
+        <label>Enter Registration Number Plate</label>
+        <input type="text" id="busPlateInput" value="WP-ND-1024" placeholder="e.g. WP-ND-1024">
+      </div>
+      <button class="btn btn-primary" onclick="searchBus()">FIND BUS & SEAT MAP</button>
+      
+      <div style="margin-top: 24px;">
+        <p style="font-size: 12px; font-weight: bold; color: #78909c; margin-bottom: 8px;">SAMPLE ACTIVE BUSES</p>
+        <div class="bus-info-card" onclick="quickSelectBus('WP-ND-1024')" style="cursor: pointer;">
+          <div>
+            <strong>WP-ND-1024</strong> (Route 138)
+            <div style="font-size: 12px; color: #666;">Colombo Fort ➔ Kottawa</div>
+          </div>
+          <span style="color: var(--accent-green); font-weight: bold;" id="bus1Count">18 Free</span>
+        </div>
+        <div class="bus-info-card" onclick="quickSelectBus('WP-NA-9081')" style="cursor: pointer;">
+          <div>
+            <strong>WP-NA-9081</strong> (Route 120)
+            <div style="font-size: 12px; color: #666;">Pettah ➔ Horana</div>
+          </div>
+          <span style="color: var(--accent-green); font-weight: bold;" id="bus2Count">25 Free</span>
+        </div>
+      </div>
+
+      <button class="btn btn-outline" style="margin-top: auto;" onclick="openGpsScreen()">📡 OPEN GPS TELEMETRY TEST</button>
+      <button class="btn btn-outline" onclick="logout()">LOGOUT</button>
+    </div>
+
+    <!-- 3. SEAT MAP SCREEN (PASSENGER / CONDUCTOR) -->
+    <div class="screen" id="seatMapScreen">
+      <div class="bus-info-card">
+        <div>
+          <strong id="seatMapBusPlate">WP-ND-1024</strong>
+          <div id="seatMapRoute" style="font-size: 12px; color: #666;">Route 138 • Fare: Rs. 150</div>
+        </div>
+        <button class="btn btn-outline" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="backToSearch()">Back</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot dot-free"></div> Free</div>
+        <div class="legend-item"><div class="legend-dot dot-taken"></div> Occupied</div>
+        <div class="legend-item"><div class="legend-dot dot-selected"></div> Selected</div>
+      </div>
+
+      <div class="seat-grid-container">
+        <div class="driver-row">🚌 FRONT / DRIVER</div>
+        <div id="seatGrid"></div>
+      </div>
+
+      <div class="checkout-sheet" id="checkoutSheet" style="display: none;">
+        <div class="ticket-summary">
+          <span>Seat Selected: <strong id="selectedSeatNum">-</strong></span>
+          <span>Fare: <strong>Rs. 150.00</strong></span>
+        </div>
+        <button class="btn btn-primary" id="confirmActionBtn" onclick="confirmBooking()">CONFIRM BOOKING (ATOMIC)</button>
+      </div>
+    </div>
+
+    <!-- 4. TICKET CONFIRMATION SCREEN -->
+    <div class="screen" id="ticketScreen">
+      <div class="ticket-card">
+        <div class="ticket-title">✓ TICKET CONFIRMED</div>
+        <p style="font-size: 12px; color: #666;" id="ticketIdDisplay">Ticket #TKT-891024</p>
+        <div class="qr-mock">[ VALID DIGITAL QR ]</div>
+        <div style="text-align: left; font-size: 13px; line-height: 1.8;">
+          <div><strong>Passenger:</strong> <span id="ticketPassName">Alex</span></div>
+          <div><strong>Bus Plate:</strong> <span id="ticketBusPlate">WP-ND-1024</span></div>
+          <div><strong>Seat:</strong> <span id="ticketSeatNum">18</span></div>
+          <div><strong>Route:</strong> 138 (Colombo - Kottawa)</div>
+          <div><strong>Status:</strong> PAID & CONFIRMED</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top: 20px;" onclick="backToSearch()">BOOK ANOTHER SEAT</button>
+    </div>
+
+    <!-- 5. GPS DIAGNOSTICS SCREEN -->
+    <div class="screen" id="gpsScreen">
+      <h3>Live GPS Telemetry (RTBT-16)</h3>
+      <p style="font-size: 12px; color: #666;">Streaming device coordinates for bus tracking</p>
+      
+      <div class="telemetry-card">
+        <div class="telemetry-row"><span>STATUS:</span><span style="color: var(--accent-green); font-weight: bold;">STREAMING FIX</span></div>
+        <div class="telemetry-row"><span>LATITUDE:</span><span id="gpsLat">6.927079</span></div>
+        <div class="telemetry-row"><span>LONGITUDE:</span><span id="gpsLng">79.861244</span></div>
+        <div class="telemetry-row"><span>ACCURACY:</span><span id="gpsAcc">3.4 m</span></div>
+        <div class="telemetry-row"><span>SPEED:</span><span id="gpsSpd">32.4 km/h</span></div>
+        <div class="telemetry-row"><span>UPDATED:</span><span id="gpsTime">Just now</span></div>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top: 20px;" onclick="refreshGps()">REFRESH PING</button>
+      <button class="btn btn-outline" onclick="backToSearch()">BACK</button>
+    </div>
+  </div>
+
+  <script>
+    // In-memory synchronized database state
+    const appState = {
+      user: null,
+      selectedBus: 'WP-ND-1024',
+      selectedSeat: null,
+      seats: {}
+    };
+
+    // Initialize 2 buses with 40 seats each
+    function initSeats() {
+      ['WP-ND-1024', 'WP-NA-9081'].forEach(plate => {
+        appState.seats[plate] = {};
+        for (let i = 1; i <= 40; i++) {
+          const num = i < 10 ? '0' + i : '' + i;
+          // Randomly take a few seats to simulate live conditions
+          const isTaken = (i === 3 || i === 4 || i === 7 || i === 8 || i === 12);
+          appState.seats[plate][num] = {
+            seatNumber: num,
+            status: isTaken ? 'taken' : 'available',
+            bookedBy: isTaken ? 'Walk-in Passenger' : null
+          };
+        }
+      });
+    }
+    initSeats();
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function handleAuth() {
+      const role = document.getElementById('userRoleSelect').value;
+      const name = document.getElementById('userNameInput').value.trim() || 'User';
+      appState.user = { name, role };
+
+      document.getElementById('roleBadge').innerText = role;
+      document.getElementById('headerTitle').innerText = role === 'conductor' ? 'Conductor Mode' : 'Passenger Mode';
+
+      if (role === 'conductor') {
+        quickSelectBus('WP-ND-1024');
+      } else {
+        showScreen('passengerSearchScreen');
+      }
+    }
+
+    function logout() {
+      appState.user = null;
+      document.getElementById('roleBadge').innerText = 'Demo';
+      document.getElementById('headerTitle').innerText = 'CityBus Go';
+      showScreen('authScreen');
+    }
+
+    function quickSelectBus(plate) {
+      document.getElementById('busPlateInput').value = plate;
+      searchBus();
+    }
+
+    function searchBus() {
+      const plate = document.getElementById('busPlateInput').value.trim().toUpperCase();
+      if (!appState.seats[plate]) {
+        alert('Bus with plate ' + plate + ' not found in active fleet.');
+        return;
+      }
+      appState.selectedBus = plate;
+      appState.selectedSeat = null;
+      document.getElementById('seatMapBusPlate').innerText = plate;
+      document.getElementById('seatMapRoute').innerText = plate === 'WP-ND-1024' ? 'Route 138 • Fare: Rs. 150' : 'Route 120 • Fare: Rs. 220';
+      document.getElementById('checkoutSheet').style.display = 'none';
+      renderSeatMap();
+      showScreen('seatMapScreen');
+    }
+
+    function backToSearch() {
+      if (appState.user.role === 'conductor') {
+        logout();
+      } else {
+        showScreen('passengerSearchScreen');
+      }
+    }
+
+    function renderSeatMap() {
+      const container = document.getElementById('seatGrid');
+      container.innerHTML = '';
+      const busSeats = appState.seats[appState.selectedBus];
+
+      for (let i = 1; i <= 40; i += 4) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'seat-row';
+
+        const s1 = (i < 10 ? '0' : '') + i;
+        const s2 = (i + 1 < 10 ? '0' : '') + (i + 1);
+        const s3 = (i + 2 < 10 ? '0' : '') + (i + 2);
+        const s4 = (i + 3 < 10 ? '0' : '') + (i + 3);
+
+        rowDiv.appendChild(createSeatElement(s1, busSeats[s1]));
+        rowDiv.appendChild(createSeatElement(s2, busSeats[s2]));
+
+        const aisle = document.createElement('div');
+        aisle.className = 'aisle';
+        rowDiv.appendChild(aisle);
+
+        rowDiv.appendChild(createSeatElement(s3, busSeats[s3]));
+        rowDiv.appendChild(createSeatElement(s4, busSeats[s4]));
+
+        container.appendChild(rowDiv);
+      }
+    }
+
+    function createSeatElement(num, data) {
+      const el = document.createElement('div');
+      el.className = 'seat ' + data.status;
+      if (appState.selectedSeat === num) el.classList.add('selected');
+      el.innerText = num;
+
+      el.onclick = () => {
+        if (data.status === 'taken') {
+          alert('Seat #' + num + ' is already taken by ' + data.bookedBy);
+          return;
+        }
+        appState.selectedSeat = num;
+        document.getElementById('selectedSeatNum').innerText = '#' + num;
+        document.getElementById('checkoutSheet').style.display = 'block';
+        document.getElementById('confirmActionBtn').innerText = 
+          appState.user.role === 'conductor' ? 'ISSUE CASH TICKET (SEAT #' + num + ')' : 'BUY TICKET (SEAT #' + num + ')';
+        renderSeatMap();
+      };
+      return el;
+    }
+
+    function confirmBooking() {
+      if (!appState.selectedSeat) return;
+      const num = appState.selectedSeat;
+      const busSeats = appState.seats[appState.selectedBus];
+
+      // Atomic validation simulation
+      if (busSeats[num].status === 'taken') {
+        alert('Conflict detected! Seat #' + num + ' was just reserved by another user.');
+        renderSeatMap();
+        return;
+      }
+
+      busSeats[num].status = 'taken';
+      busSeats[num].bookedBy = appState.user.name;
+
+      document.getElementById('ticketIdDisplay').innerText = 'Ticket #TKT-' + Math.floor(100000 + Math.random() * 900000);
+      document.getElementById('ticketPassName').innerText = appState.user.name;
+      document.getElementById('ticketBusPlate').innerText = appState.selectedBus;
+      document.getElementById('ticketSeatNum').innerText = '#' + num;
+
+      document.getElementById('checkoutSheet').style.display = 'none';
+      showScreen('ticketScreen');
+    }
+
+    function openGpsScreen() {
+      refreshGps();
+      showScreen('gpsScreen');
+    }
+
+    function refreshGps() {
+      // Simulate live jitter
+      const lat = (6.927079 + (Math.random() - 0.5) * 0.005).toFixed(6);
+      const lng = (79.861244 + (Math.random() - 0.5) * 0.005).toFixed(6);
+      const acc = (2.8 + Math.random() * 2).toFixed(1);
+      const spd = (25 + Math.random() * 15).toFixed(1);
+
+      document.getElementById('gpsLat').innerText = lat;
+      document.getElementById('gpsLng').innerText = lng;
+      document.getElementById('gpsAcc').innerText = acc + ' m';
+      document.getElementById('gpsSpd').innerText = spd + ' km/h';
+      document.getElementById('gpsTime').innerText = new Date().toLocaleTimeString();
+    }
+  </script>
+</body>
+</html>

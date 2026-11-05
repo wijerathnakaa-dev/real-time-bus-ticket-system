@@ -190,3 +190,4 @@ class _GpsDiagnosticScreenState extends State<GpsDiagnosticScreen> {
     );
   }
 }
+

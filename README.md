@@ -61,3 +61,4 @@ flutter test
 - [x] **RTBT-14:** Firebase Auth registration, role selection (`passenger`/`conductor`), login & session persistence.
 - [x] **RTBT-15:** Firestore security rules and seed data for routes, buses, and seats.
 - [x] **RTBT-16:** GPS Diagnostics Screen with location streaming, accuracy check, and permission failure handling.
+
