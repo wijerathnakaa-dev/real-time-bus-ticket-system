@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_theme.dart';
+import 'find_bus_screen.dart';
+import 'my_tickets_screen.dart';
 import '../common/gps_diagnostic_screen.dart';
 
 class PassengerHomeScreen extends StatelessWidget {
@@ -11,6 +13,9 @@ class PassengerHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
+
+    final userId = user?.uid ?? 'guest_pass_1';
+    final userName = user?.name ?? 'Passenger';
 
     return Scaffold(
       appBar: AppBar(
@@ -48,7 +53,7 @@ class PassengerHomeScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Welcome, ${user?.name ?? "Passenger"}!',
+                            'Welcome, $userName!',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -67,7 +72,7 @@ class PassengerHomeScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
-                              'Role: Passenger',
+                              'Role: Passenger Mode',
                               style: TextStyle(
                                 color: AppTheme.accentGreen,
                                 fontWeight: FontWeight.bold,
@@ -84,19 +89,24 @@ class PassengerHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Quick Actions',
+              'Passenger Services',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             _buildFeatureTile(
               context,
               icon: Icons.search_rounded,
-              title: 'Find Bus by Number Plate',
-              subtitle: 'Check real-time seat availability (Sprint 3)',
+              title: 'Find Bus & View Seats',
+              subtitle: 'Enter plate number or scan plate with camera (RTBT-17)',
               color: AppTheme.primaryBlue,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bus search will unlock in Sprint 3')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FindBusScreen(
+                      passengerId: userId,
+                      passengerName: userName,
+                    ),
+                  ),
                 );
               },
             ),
@@ -105,11 +115,13 @@ class PassengerHomeScreen extends StatelessWidget {
               context,
               icon: Icons.confirmation_number_outlined,
               title: 'My Booked Tickets',
-              subtitle: 'View e-tickets and booking receipts',
+              subtitle: 'View active e-tickets and digital QR receipts (RTBT-19)',
               color: Colors.deepPurple,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('My Tickets will unlock in Sprint 3')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MyTicketsScreen(passengerId: userId),
+                  ),
                 );
               },
             ),
@@ -117,8 +129,8 @@ class PassengerHomeScreen extends StatelessWidget {
             _buildFeatureTile(
               context,
               icon: Icons.gps_fixed_rounded,
-              title: 'GPS Diagnostics Tool',
-              subtitle: 'Test live device GPS tracking (Sprint 2 / RTBT-16)',
+              title: 'Live GPS Telemetry Tool',
+              subtitle: 'Test mobile device GPS ping and accuracy (RTBT-16)',
               color: Colors.teal,
               onTap: () {
                 Navigator.of(context).push(
@@ -156,4 +168,3 @@ class PassengerHomeScreen extends StatelessWidget {
     );
   }
 }
-

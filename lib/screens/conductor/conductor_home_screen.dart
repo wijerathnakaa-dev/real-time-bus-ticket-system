@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/bus_model.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_theme.dart';
+import 'conductor_seat_map_screen.dart';
 import '../common/gps_diagnostic_screen.dart';
 
 class ConductorHomeScreen extends StatelessWidget {
@@ -11,6 +13,21 @@ class ConductorHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
+
+    final conductorId = user?.uid ?? 'conductor_demo_uid';
+
+    // Default assigned demo bus
+    final assignedBus = BusModel(
+      id: 'bus_WP_ND_1024',
+      plateNumber: 'WP-ND-1024',
+      routeId: 'route_138',
+      routeNumber: '138',
+      conductorId: conductorId,
+      totalSeats: 40,
+      availableSeats: 18,
+      status: 'on_trip',
+      updatedAt: DateTime.now(),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -85,32 +102,24 @@ class ConductorHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Conductor Operations',
+              'Assigned Vehicle (Route 138)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             _buildActionTile(
               context,
               icon: Icons.event_seat_rounded,
-              title: 'Live Seat Management',
-              subtitle: 'View seat occupancy & update boarding states (Sprint 3)',
+              title: 'Seat Map & Walk-in Ticketing',
+              subtitle: 'View live grid & tap to issue tickets (RTBT-20 & RTBT-21)',
               color: AppTheme.accentGreen,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Seat management will unlock in Sprint 3')),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildActionTile(
-              context,
-              icon: Icons.receipt_long_rounded,
-              title: 'Issue Walk-in Cash Ticket',
-              subtitle: 'Issue on-board passenger tickets (Sprint 3)',
-              color: AppTheme.primaryBlue,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ticket issuing will unlock in Sprint 3')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ConductorSeatMapScreen(
+                      bus: assignedBus,
+                      conductorId: conductorId,
+                    ),
+                  ),
                 );
               },
             ),
@@ -118,8 +127,8 @@ class ConductorHomeScreen extends StatelessWidget {
             _buildActionTile(
               context,
               icon: Icons.location_on_rounded,
-              title: 'Live GPS Telemetry Test',
-              subtitle: 'Verify conductor device location broadcasting (RTBT-16)',
+              title: 'Live GPS Telemetry Broadcast',
+              subtitle: 'Check conductor device GPS broadcast (RTBT-16)',
               color: Colors.teal,
               onTap: () {
                 Navigator.of(context).push(
@@ -157,4 +166,3 @@ class ConductorHomeScreen extends StatelessWidget {
     );
   }
 }
-
