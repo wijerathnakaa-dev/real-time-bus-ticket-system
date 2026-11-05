@@ -88,3 +88,4 @@ git commit -m "RTBT-14: implement login screen and auth provider"
 # 5. Push to GitHub
 git push -u origin feature/RTBT-14-login-auth
 ```
+

@@ -206,3 +206,4 @@ Seat allocation MUST be performed inside a **Firestore Transaction** (`runTransa
    - Update `buses/{busId}/seats/{seatNumber}` $\to$ `status = 'taken'`, `ticketId = newTicketRef.id`.
    - Decrement `buses/{busId}.availableSeats` by 1 (`FieldValue.increment(-1)`).
    - Create new document in `tickets/{newTicketId}`.
+

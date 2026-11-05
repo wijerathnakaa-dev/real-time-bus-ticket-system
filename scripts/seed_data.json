@@ -1,0 +1,46 @@
+{
+  "routes": [
+    {
+      "id": "route_138",
+      "routeNumber": "138",
+      "origin": "Colombo Fort",
+      "destination": "Kottawa",
+      "standardFare": 150.0,
+      "estimatedDurationMins": 45
+    },
+    {
+      "id": "route_120",
+      "routeNumber": "120",
+      "origin": "Pettah",
+      "destination": "Horana",
+      "standardFare": 220.0,
+      "estimatedDurationMins": 70
+    }
+  ],
+  "buses": [
+    {
+      "id": "bus_WP_ND_1024",
+      "plateNumber": "WP-ND-1024",
+      "routeId": "route_138",
+      "routeNumber": "138",
+      "conductorId": "conductor_demo_uid",
+      "totalSeats": 40,
+      "availableSeats": 38,
+      "status": "on_trip"
+    },
+    {
+      "id": "bus_WP_NA_9081",
+      "plateNumber": "WP-NA-9081",
+      "routeId": "route_120",
+      "routeNumber": "120",
+      "conductorId": "conductor_demo_uid_2",
+      "totalSeats": 40,
+      "availableSeats": 25,
+      "status": "on_trip"
+    }
+  ],
+  "seats_template": {
+    "count": 40,
+    "default_status": "available"
+  }
+}

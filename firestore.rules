@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isConductor() {
+      return isAuthenticated() && getUserData().role == 'conductor';
+    }
+
+    // 1. Users collection:
+    // Anyone authenticated can read user profiles; users can only write/update their own document.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update, delete: if isOwner(userId);
+    }
+
+    // 2. Routes collection:
+    // Read-only for authenticated passengers and conductors.
+    match /routes/{routeId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Managed via admin console or seed scripts
+    }
+
+    // 3. Buses collection & Seats subcollection:
+    // Passengers can read bus availability.
+    // Only conductors can update seat occupancy or vehicle status.
+    match /buses/{busId} {
+      allow read: if isAuthenticated();
+      allow update: if isConductor();
+      allow create, delete: if false;
+
+      // Individual Seats Subcollection:
+      match /seats/{seatNumber} {
+        allow read: if isAuthenticated();
+        // Conductors can freely update seat status.
+        // Passengers can update a seat ONLY when reserving it (transitioning from 'available' to 'taken').
+        allow update: if isConductor() || 
+          (isAuthenticated() && 
+           resource.data.status == 'available' && 
+           request.resource.data.status == 'taken' && 
+           request.resource.data.bookedBy == request.auth.uid);
+      }
+    }
+
+    // 4. Tickets collection:
+    // Passengers can only read tickets they own (passengerId == auth.uid).
+    // Conductors can read all tickets for bus verification.
+    // Passengers can create their own tickets; Conductors can issue walk-in tickets.
+    match /tickets/{ticketId} {
+      allow read: if isConductor() || (isAuthenticated() && resource.data.passengerId == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.passengerId == request.auth.uid || isConductor());
+      allow update, delete: if false; // Tickets are immutable once created
+    }
+
+    // 5. Bus Locations collection:
+    // Read by everyone for live tracking (Sprints 4-5).
+    // Only conductors can broadcast location updates.
+    match /bus_locations/{busId} {
+      allow read: if isAuthenticated();
+      allow write: if isConductor();
+    }
+  }
+}
