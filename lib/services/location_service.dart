@@ -1,19 +1,25 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/location_model.dart';
+import '../utils/app_constants.dart';
 
 class LocationService extends ChangeNotifier {
   LocationModel? _currentLocation;
   bool _isServiceEnabled = false;
   LocationPermission _permission = LocationPermission.denied;
   String? _errorMessage;
+  String? _broadcastingBusId;
   StreamSubscription<Position>? _positionStreamSubscription;
 
   LocationModel? get currentLocation => _currentLocation;
   bool get isServiceEnabled => _isServiceEnabled;
   LocationPermission get permission => _permission;
   String? get errorMessage => _errorMessage;
+  String? get broadcastingBusId => _broadcastingBusId;
+
+  bool isBroadcastingFor(String busId) => _broadcastingBusId == busId;
 
   Future<void> checkAndRequestPermission() async {
     _isServiceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -46,7 +52,7 @@ class LocationService extends ChangeNotifier {
   Future<LocationModel?> getCurrentLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
       _currentLocation = LocationModel(
@@ -66,11 +72,13 @@ class LocationService extends ChangeNotifier {
     }
   }
 
-  void startTracking({int distanceFilter = 10, int intervalSeconds = 3}) {
+  void startTracking({String? busId, int distanceFilter = 10}) {
     _positionStreamSubscription?.cancel();
-    final locationSettings = LocationSettings(
+    _broadcastingBusId = busId;
+
+    const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: distanceFilter,
+      distanceFilter: 10,
     );
 
     _positionStreamSubscription = Geolocator.getPositionStream(
@@ -84,15 +92,36 @@ class LocationService extends ChangeNotifier {
         timestamp: position.timestamp,
       );
       notifyListeners();
+
+      // If broadcasting for a specific bus, publish to Cloud Firestore
+      if (busId != null && busId.isNotEmpty) {
+        FirebaseFirestore.instance
+            .collection(AppConstants.colLocations)
+            .doc(busId)
+            .set({
+          'busId': busId,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'accuracy': position.accuracy,
+          'speed': position.speed * 3.6, // m/s to km/h as defined in schema
+          'timestamp': FieldValue.serverTimestamp(),
+        }).catchError((e) {
+          debugPrint('Firestore GPS broadcast failed: $e');
+        });
+      }
     }, onError: (e) {
       _errorMessage = 'Error streaming GPS position: $e';
       notifyListeners();
     });
+
+    notifyListeners();
   }
 
   void stopTracking() {
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
+    _broadcastingBusId = null;
+    notifyListeners();
   }
 
   @override
@@ -101,4 +130,3 @@ class LocationService extends ChangeNotifier {
     super.dispose();
   }
 }
-

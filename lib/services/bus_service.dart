@@ -6,6 +6,17 @@ import '../utils/app_constants.dart';
 class BusService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Fetch bus by Document ID (RTBT-14 / RTBT-21)
+  Future<BusModel?> getBusById(String busId) async {
+    try {
+      final doc = await _firestore.collection(AppConstants.colBuses).doc(busId).get();
+      if (!doc.exists) return null;
+      return BusModel.fromFirestore(doc);
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Search bus by plate number (RTBT-17)
   Future<BusModel?> findBusByPlate(String plateNumber) async {
     final cleanPlate = plateNumber.trim().toUpperCase().replaceAll(' ', '-');
@@ -21,6 +32,14 @@ class BusService {
     return BusModel.fromFirestore(query.docs.first);
   }
 
+  // Stream active fleet for browsing (RTBT-17)
+  Stream<List<BusModel>> streamActiveBuses() {
+    return _firestore
+        .collection(AppConstants.colBuses)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => BusModel.fromFirestore(doc)).toList());
+  }
+
   // Stream seats for real-time map (RTBT-18 & RTBT-21)
   Stream<List<SeatModel>> streamSeatsForBus(String busId) {
     return _firestore
@@ -34,4 +53,3 @@ class BusService {
             .toList());
   }
 }
-
