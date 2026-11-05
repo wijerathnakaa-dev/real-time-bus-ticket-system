@@ -21,7 +21,7 @@ class FindBusScreen extends StatefulWidget {
 }
 
 class _FindBusScreenState extends State<FindBusScreen> {
-  final TextEditingController _plateController = TextEditingController(text: 'WP-ND-1024');
+  final TextEditingController _plateController = TextEditingController();
   final BusService _busService = BusService();
   final NumberPlateOcrService _ocrService = NumberPlateOcrService();
 
@@ -35,10 +35,10 @@ class _FindBusScreenState extends State<FindBusScreen> {
     super.dispose();
   }
 
-  void _searchBus() async {
-    final plate = _plateController.text.trim();
+  void _searchBus([String? plateToSearch]) async {
+    final plate = (plateToSearch ?? _plateController.text).trim();
     if (plate.isEmpty) {
-      setState(() => _errorMessage = 'Please enter a bus number plate.');
+      setState(() => _errorMessage = 'Please enter a bus registration plate.');
       return;
     }
 
@@ -53,7 +53,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
 
       if (bus == null) {
         setState(() {
-          _errorMessage = 'Bus "$plate" not found in active fleet.';
+          _errorMessage = 'Bus "$plate" was not found in active fleet.';
           _isLoading = false;
         });
         return;
@@ -91,11 +91,11 @@ class _FindBusScreenState extends State<FindBusScreen> {
     if (recognizedPlate != null) {
       _plateController.text = recognizedPlate;
       setState(() => _isLoading = false);
-      _searchBus();
+      _searchBus(recognizedPlate);
     } else {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Could not read number plate from photo. Please enter manually.';
+        _errorMessage = 'Could not read a valid number plate from image. Please enter manually.';
       });
     }
   }
@@ -115,12 +115,12 @@ class _FindBusScreenState extends State<FindBusScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Enter Bus Registration Number',
+                'Search Active Fleet',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 6),
               const Text(
-                'Enter plate number or scan the vehicle plate photo (RTBT-17).',
+                'Enter registration plate or scan the vehicle plate photo (RTBT-17).',
                 style: TextStyle(color: Colors.black54, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -130,7 +130,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.occupiedRed.withOpacity(0.1),
+                    color: AppTheme.occupiedRed.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(_errorMessage!, style: const TextStyle(color: AppTheme.occupiedRed)),
@@ -152,9 +152,9 @@ class _FindBusScreenState extends State<FindBusScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _searchBus,
+                onPressed: () => _searchBus(),
                 icon: const Icon(Icons.search),
-                label: const Text('VIEW SEATS ON THIS BUS'),
+                label: const Text('SEARCH BUS'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -165,32 +165,64 @@ class _FindBusScreenState extends State<FindBusScreen> {
 
               const SizedBox(height: 30),
               const Text(
-                'Quick Route Selection (Demo Fleet):',
+                'Active Fleet Buses (Live from Firestore):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
-              const SizedBox(height: 8),
-              _buildDemoBusCard('WP-ND-1024', 'Route 138 (Colombo Fort - Kottawa)', '18 Seats Available'),
-              _buildDemoBusCard('WP-NA-9081', 'Route 120 (Pettah - Horana)', '25 Seats Available'),
+              const SizedBox(height: 10),
+
+              StreamBuilder<List<BusModel>>(
+                stream: _busService.streamActiveBuses(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ));
+                  }
+
+                  final buses = snapshot.data ?? [];
+                  if (buses.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'No active buses in fleet yet. Run "node scripts/seed.js" to populate initial vehicles.',
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: buses.length,
+                    itemBuilder: (context, index) {
+                      final bus = buses[index];
+                      return Card(
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: const Icon(Icons.airport_shuttle, color: AppTheme.primaryBlue),
+                          title: Text(bus.plateNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('Route ${bus.routeNumber} • Status: ${bus.status}'),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                          onTap: () {
+                            _plateController.text = bus.plateNumber;
+                            _searchBus(bus.plateNumber);
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDemoBusCard(String plate, String route, String seats) {
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: const Icon(Icons.airport_shuttle, color: AppTheme.primaryBlue),
-        title: Text(plate, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(route),
-        trailing: Text(seats, style: const TextStyle(color: AppTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 12)),
-        onTap: () {
-          _plateController.text = plate;
-          _searchBus();
-        },
       ),
     );
   }

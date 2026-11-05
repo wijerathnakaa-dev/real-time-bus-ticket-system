@@ -6,7 +6,7 @@ class NumberPlateOcrService {
   final TextRecognizer _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
   final ImagePicker _picker = ImagePicker();
 
-  // Pattern matching Sri Lankan number plates: e.g. "WP ND-1024", "NC WP-4521", "ND 1024", "1024"
+  // Pattern matching Sri Lankan number plates: e.g. "WP ND-1024", "NC WP-4521", "ND-1024", "1024"
   final RegExp _plateRegex = RegExp(
     r'([A-Z]{2}[-\s]?[A-Z]{2,3}[-\s]?\d{4})|([A-Z]{2,3}[-\s]?\d{4})|(\b\d{2,3}[-\s]?\d{4}\b)',
     caseSensitive: false,
@@ -26,7 +26,7 @@ class NumberPlateOcrService {
       final inputImage = InputImage.fromFilePath(photo.path);
       final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
 
-      // Search all blocks and lines for plate number pattern
+      // Search all blocks and lines strictly for standard vehicle plate regex patterns
       for (final block in recognizedText.blocks) {
         for (final line in block.lines) {
           final cleanLine = line.text.trim().toUpperCase();
@@ -34,18 +34,6 @@ class NumberPlateOcrService {
           if (match != null) {
             return _normalizePlate(match.group(0)!);
           }
-        }
-      }
-
-      // If no regex match found, return the highest confidence single line with alphanumeric text
-      if (recognizedText.text.isNotEmpty) {
-        final lines = recognizedText.text
-            .split('\n')
-            .map((e) => e.trim().toUpperCase())
-            .where((e) => e.length >= 4 && e.contains(RegExp(r'\d')))
-            .toList();
-        if (lines.isNotEmpty) {
-          return _normalizePlate(lines.first);
         }
       }
 
