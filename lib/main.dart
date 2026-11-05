@@ -11,12 +11,45 @@ import 'utils/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Try initializing Firebase; handle local mock/offline state gracefully
+
+  String? initError;
   try {
     await Firebase.initializeApp();
   } catch (e) {
-    debugPrint('Firebase initialization note (config pending in Sprint 2): $e');
+    initError = e.toString();
+  }
+
+  if (initError != null) {
+    runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Initialization Error')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.cloud_off, size: 64, color: AppTheme.occupiedRed),
+                const SizedBox(height: 16),
+                const Text(
+                  'Firebase Setup Required',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Firebase failed to initialize:\n$initError\n\nPlease add google-services.json to android/app and run "flutterfire configure".',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+    return;
   }
 
   runApp(
@@ -66,4 +99,3 @@ class AuthGate extends StatelessWidget {
     return const LoginScreen();
   }
 }
-
