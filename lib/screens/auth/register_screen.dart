@@ -20,7 +20,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String _selectedRole = AppConstants.rolePassenger;
   bool _obscurePassword = true;
 
   @override
@@ -37,11 +36,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authService = Provider.of<AuthService>(context, listen: false);
+    // Registration strictly creates a passenger account. Conductor accounts are elevated by admin in Firestore.
     final success = await authService.register(
       name: _nameController.text,
       email: _emailController.text,
       password: _passwordController.text,
-      role: _selectedRole,
+      role: AppConstants.rolePassenger,
       phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
     );
 
@@ -136,34 +136,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Select Role:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 20),
                   Container(
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFCFD8DC)),
+                      color: AppTheme.primaryBlue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Column(
+                    child: const Row(
                       children: [
-                        RadioListTile<String>(
-                          title: const Text('Passenger (Book tickets & view seats)'),
-                          value: AppConstants.rolePassenger,
-                          groupValue: _selectedRole,
-                          activeColor: AppTheme.primaryBlue,
-                          onChanged: (val) => setState(() => _selectedRole = val!),
-                        ),
-                        const Divider(height: 1),
-                        RadioListTile<String>(
-                          title: const Text('Conductor (Issue tickets & manage seats)'),
-                          value: AppConstants.roleConductor,
-                          groupValue: _selectedRole,
-                          activeColor: AppTheme.primaryBlue,
-                          onChanged: (val) => setState(() => _selectedRole = val!),
+                        Icon(Icons.info_outline, size: 20, color: AppTheme.primaryBlue),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Registration creates a Passenger account. Conductor accounts require fleet admin authorization.',
+                            style: TextStyle(fontSize: 12, color: Colors.black87),
+                          ),
                         ),
                       ],
                     ),
@@ -171,7 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _handleRegister,
-                    child: const Text('REGISTER'),
+                    child: const Text('REGISTER AS PASSENGER'),
                   ),
                 ],
               ),
@@ -182,4 +170,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-
