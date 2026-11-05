@@ -9,6 +9,7 @@ class TicketModel {
   final String seatNumber;
   final String passengerId;
   final String passengerName;
+  final String? passengerPhone;
   final String issuedByRole; // 'passenger' or 'conductor'
   final String? conductorId;
   final double fare;
@@ -25,6 +26,7 @@ class TicketModel {
     required this.seatNumber,
     required this.passengerId,
     required this.passengerName,
+    this.passengerPhone,
     required this.issuedByRole,
     this.conductorId,
     required this.fare,
@@ -44,6 +46,7 @@ class TicketModel {
       seatNumber: data['seatNumber'] ?? '',
       passengerId: data['passengerId'] ?? '',
       passengerName: data['passengerName'] ?? '',
+      passengerPhone: data['passengerPhone'],
       issuedByRole: data['issuedByRole'] ?? 'passenger',
       conductorId: data['conductorId'],
       fare: (data['fare'] as num?)?.toDouble() ?? 0.0,
@@ -62,8 +65,9 @@ class TicketModel {
       'seatNumber': seatNumber,
       'passengerId': passengerId,
       'passengerName': passengerName,
+      if (passengerPhone != null) 'passengerPhone': passengerPhone,
       'issuedByRole': issuedByRole,
-      'conductorId': conductorId,
+      if (conductorId != null) 'conductorId': conductorId,
       'fare': fare,
       'paymentStatus': paymentStatus,
       'paymentMethod': paymentMethod,
@@ -71,4 +75,3 @@ class TicketModel {
     };
   }
 }
-
