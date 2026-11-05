@@ -1,0 +1,25 @@
+{
+  "name": "real-time-bus-backend",
+  "version": "1.0.0",
+  "description": "Backend API, WebSocket sync & GPS tracking service for Real-Time Bus Ticket & Seat Availability System",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --detectOpenHandles"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.0.0",
+    "socket.io": "^4.7.5",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "supertest": "^6.3.4"
+  }
+}
+
