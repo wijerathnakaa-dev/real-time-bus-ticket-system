@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../models/bus_model.dart';
 import '../../models/seat_model.dart';
+import '../../models/route_model.dart';
 import '../../services/bus_service.dart';
 import '../../services/ticket_service.dart';
 import '../../widgets/seat_grid_widget.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../utils/app_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ticket_confirmation_screen.dart';
 
 class SeatMapScreen extends StatefulWidget {
@@ -30,11 +32,30 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
 
   String? _selectedSeatNumber;
   bool _isBooking = false;
+  RouteModel? _route;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRouteDetails();
+  }
+
+  void _loadRouteDetails() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('routes').doc(widget.bus.routeId).get();
+      if (doc.exists && mounted) {
+        setState(() {
+          _route = RouteModel.fromFirestore(doc);
+        });
+      }
+    } catch (_) {}
+  }
 
   void _handleBooking() async {
     if (_selectedSeatNumber == null) return;
 
     setState(() => _isBooking = true);
+    final fare = _route?.standardFare ?? 150.0;
 
     try {
       final ticket = await _ticketService.bookSeat(
@@ -45,7 +66,7 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
         passengerId: widget.passengerId,
         passengerName: widget.passengerName,
         issuedByRole: 'passenger',
-        fare: 150.0, // Standard fare for route
+        fare: fare,
         paymentMethod: 'cash',
       );
 
@@ -71,6 +92,8 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final fare = _route?.standardFare ?? 150.0;
+
     return LoadingOverlay(
       isLoading: _isBooking,
       message: 'Reserving seat atomically...',
@@ -91,8 +114,8 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Route ${widget.bus.routeNumber}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        _route != null ? '${_route!.origin} ➔ ${_route!.destination}' : 'Route ${widget.bus.routeNumber}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       Text(
                         'Plate: ${widget.bus.plateNumber}',
@@ -100,11 +123,11 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
                       ),
                     ],
                   ),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('Fare: Rs. 150.00', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
-                      Text('Cash on Board', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text('Fare: Rs. ${fare.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                      const Text('Cash on Board', style: TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                 ],
@@ -124,7 +147,7 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
               ),
             ),
 
-            // Live stream of seats
+            // Live stream of seats with dynamic free seat count
             Expanded(
               child: StreamBuilder<List<SeatModel>>(
                 stream: _busService.streamSeatsForBus(widget.bus.id),
@@ -134,10 +157,30 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
                   }
 
                   final seats = snapshot.data ?? [];
-                  return SeatGridWidget(
-                    seats: seats,
-                    selectedSeatNumber: _selectedSeatNumber,
-                    onSeatSelected: (num) => setState(() => _selectedSeatNumber = num),
+                  final freeCount = seats.where((s) => s.isAvailable).length;
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Available Seats: $freeCount / ${seats.length}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.accentGreen)),
+                            Text('Taken: ${seats.length - freeCount}',
+                                style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: SeatGridWidget(
+                          seats: seats,
+                          selectedSeatNumber: _selectedSeatNumber,
+                          onSeatSelected: (num) => setState(() => _selectedSeatNumber = num),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -150,7 +193,7 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -2)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, -2)),
                   ],
                 ),
                 child: Row(
@@ -161,7 +204,7 @@ class _SeatMapScreenState extends State<SeatMapScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text('Selected Seat: #$_selectedSeatNumber', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                        const Text('Total: Rs. 150.00', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                        Text('Total: Rs. ${fare.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     ElevatedButton(
