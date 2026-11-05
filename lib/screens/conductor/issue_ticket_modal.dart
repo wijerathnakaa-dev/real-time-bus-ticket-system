@@ -42,6 +42,9 @@ class _IssueTicketModalState extends State<IssueTicketModal> {
       final passengerName = _nameController.text.trim().isNotEmpty
           ? _nameController.text.trim()
           : 'Walk-in Passenger';
+      final passengerPhone = _phoneController.text.trim().isNotEmpty
+          ? _phoneController.text.trim()
+          : null;
 
       await _ticketService.bookSeat(
         busId: widget.bus.id,
@@ -50,6 +53,7 @@ class _IssueTicketModalState extends State<IssueTicketModal> {
         seatNumber: widget.seatNumber,
         passengerId: 'walk_in',
         passengerName: passengerName,
+        passengerPhone: passengerPhone,
         issuedByRole: 'conductor',
         conductorId: widget.conductorId,
         fare: 150.0,
@@ -127,7 +131,7 @@ class _IssueTicketModalState extends State<IssueTicketModal> {
               controller: _phoneController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
-                labelText: 'Phone Number (Optional)',
+                labelText: 'Passenger Phone (Optional)',
                 prefixIcon: Icon(Icons.phone_outlined),
               ),
             ),

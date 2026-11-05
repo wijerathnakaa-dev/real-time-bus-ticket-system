@@ -15,11 +15,15 @@ class TicketService {
     required String passengerName,
     required String issuedByRole,
     String? conductorId,
+    String? passengerPhone,
     required double fare,
     String paymentMethod = 'cash',
   }) async {
-    final busRef = _firestore.collection(AppConstants.colBuses).doc(busId);
-    final seatRef = busRef.collection(AppConstants.colSeats).doc(seatNumber);
+    final seatRef = _firestore
+        .collection(AppConstants.colBuses)
+        .doc(busId)
+        .collection(AppConstants.colSeats)
+        .doc(seatNumber);
     final ticketRef = _firestore.collection(AppConstants.colTickets).doc();
 
     final ticketNumber = 'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
@@ -36,7 +40,7 @@ class TicketService {
         throw Exception('Seat $seatNumber is already occupied! Please choose another seat.');
       }
 
-      // Mark seat taken
+      // Mark seat taken (atomic)
       transaction.update(seatRef, {
         'status': AppConstants.seatTaken,
         'bookedBy': passengerId,
@@ -44,11 +48,8 @@ class TicketService {
         'ticketId': ticketRef.id,
       });
 
-      // Decrement available seats counter
-      transaction.update(busRef, {
-        'availableSeats': FieldValue.increment(-1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Note: We do NOT update buses/{id}.availableSeats here.
+      // Free seats are computed dynamically from the seat stream to prevent drift and permission failures.
 
       final newTicket = TicketModel(
         id: ticketRef.id,
@@ -59,6 +60,7 @@ class TicketService {
         seatNumber: seatNumber,
         passengerId: passengerId,
         passengerName: passengerName,
+        passengerPhone: passengerPhone,
         issuedByRole: issuedByRole,
         conductorId: conductorId,
         fare: fare,
@@ -69,6 +71,29 @@ class TicketService {
 
       transaction.set(ticketRef, newTicket.toMap());
       return newTicket;
+    });
+  }
+
+  // Release a seat when passenger gets off or between trips (Conductor only)
+  Future<void> releaseSeat({
+    required String busId,
+    required String seatNumber,
+  }) async {
+    final seatRef = _firestore
+        .collection(AppConstants.colBuses)
+        .doc(busId)
+        .collection(AppConstants.colSeats)
+        .doc(seatNumber);
+
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(seatRef);
+      if (!snap.exists || snap.get('status') != AppConstants.seatTaken) return;
+      tx.update(seatRef, {
+        'status': AppConstants.seatAvailable,
+        'bookedBy': null,
+        'bookedAt': null,
+        'ticketId': null,
+      });
     });
   }
 
@@ -96,4 +121,3 @@ class TicketService {
             .toList());
   }
 }
-

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/bus_model.dart';
 import '../../models/seat_model.dart';
 import '../../services/bus_service.dart';
+import '../../services/ticket_service.dart';
 import '../../widgets/seat_grid_widget.dart';
 import '../../utils/app_theme.dart';
 import 'issue_ticket_modal.dart';
@@ -22,20 +23,52 @@ class ConductorSeatMapScreen extends StatefulWidget {
 
 class _ConductorSeatMapScreenState extends State<ConductorSeatMapScreen> {
   final BusService _busService = BusService();
+  final TicketService _ticketService = TicketService();
   String? _selectedSeatNumber;
 
   void _onSeatTapped(String seatNumber, List<SeatModel> seats) {
     final seat = seats.firstWhere((s) => s.seatNumber == seatNumber);
+
+    // If seat is occupied, offer to release/free it (passenger got off)
     if (!seat.isAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Seat #$seatNumber is already taken.'),
-          backgroundColor: AppTheme.occupiedRed,
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Free Seat #$seatNumber?'),
+          content: Text(
+            'Seat #$seatNumber is currently occupied${seat.bookedBy != null ? " by " + seat.bookedBy! : ""}.\n\nMark it available when the passenger departs?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGreen),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _ticketService.releaseSeat(
+                  busId: widget.bus.id,
+                  seatNumber: seatNumber,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Seat #$seatNumber is now free/available.'),
+                      backgroundColor: AppTheme.accentGreen,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Free Seat'),
+            ),
+          ],
         ),
       );
       return;
     }
 
+    // Otherwise, open issue ticket modal
     setState(() => _selectedSeatNumber = seatNumber);
 
     showModalBottomSheet(
@@ -78,7 +111,7 @@ class _ConductorSeatMapScreenState extends State<ConductorSeatMapScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                  child: const Text('TAP SEAT TO ISSUE', style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 11)),
+                  child: const Text('TAP SEAT TO ISSUE / FREE', style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 11)),
                 ),
               ],
             ),
@@ -89,9 +122,8 @@ class _ConductorSeatMapScreenState extends State<ConductorSeatMapScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildLegendItem('Available (Tap)', AppTheme.accentGreen),
-                _buildLegendItem('Occupied', AppTheme.occupiedRed),
-                _buildLegendItem('Selected', AppTheme.selectedSeat),
+                _buildLegendItem('Available (Tap to Issue)', AppTheme.accentGreen),
+                _buildLegendItem('Occupied (Tap to Free)', AppTheme.occupiedRed),
               ],
             ),
           ),
@@ -105,11 +137,29 @@ class _ConductorSeatMapScreenState extends State<ConductorSeatMapScreen> {
                 }
 
                 final seats = snapshot.data ?? [];
-                return SeatGridWidget(
-                  seats: seats,
-                  selectedSeatNumber: _selectedSeatNumber,
-                  isConductorView: true,
-                  onSeatSelected: (num) => _onSeatTapped(num, seats),
+                final freeCount = seats.where((s) => s.isAvailable).length;
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Free: $freeCount / ${seats.length}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Occupied: ${seats.length - freeCount}', style: const TextStyle(color: Colors.black54)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: SeatGridWidget(
+                        seats: seats,
+                        selectedSeatNumber: _selectedSeatNumber,
+                        isConductorView: true,
+                        onSeatSelected: (num) => _onSeatTapped(num, seats),
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
