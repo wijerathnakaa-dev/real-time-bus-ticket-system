@@ -62,8 +62,10 @@ app.*.map.txt
 google-services.json
 GoogleService-Info.plist
 firebase_options.dart
+serviceAccountKey.json
 .env*
 *.jks
 *.keystore
 key.properties
+
 
