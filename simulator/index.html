@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CityBus Go — Live Interactive Simulator</title>
+  <title>CityBus Go — Transit Operations & Admin Portal</title>
   <style>
     :root {
       --primary: #1e88e5;
@@ -11,6 +11,7 @@
       --accent-green: #43a047;
       --occupied-red: #e53935;
       --selected: #29b6f6;
+      --admin-dark: #263238;
       --bg: #f4f6f9;
       --surface: #ffffff;
     }
@@ -22,8 +23,8 @@
     .header-bar p { color: #90caf9; font-size: 14px; margin-top: 4px; }
 
     .app-viewport {
-      width: 420px;
-      height: 840px;
+      width: 440px;
+      height: 860px;
       background: var(--surface);
       border-radius: 36px;
       box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 0 10px #2a3447;
@@ -55,13 +56,14 @@
       align-items: center;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .app-header h2 { font-size: 18px; font-weight: 600; }
+    .app-header.admin { background: var(--admin-dark); }
+    .app-header h2 { font-size: 17px; font-weight: 600; }
     .role-badge {
       background: rgba(255,255,255,0.25);
       padding: 3px 10px;
       border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
     }
 
@@ -70,7 +72,7 @@
     .screen.active { display: flex; }
 
     /* Auth Screens */
-    .auth-box { text-align: center; margin-top: 40px; }
+    .auth-box { text-align: center; margin-top: 30px; }
     .bus-icon { font-size: 56px; color: var(--primary); margin-bottom: 12px; }
     .form-group { text-align: left; margin-bottom: 14px; }
     .form-group label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 5px; }
@@ -78,75 +80,72 @@
       width: 100%; padding: 12px; border: 1px solid #cfd8dc; border-radius: 8px; font-size: 14px;
     }
     .btn {
-      width: 100%; padding: 13px; border: none; border-radius: 8px; font-weight: 700;
-      cursor: pointer; font-size: 15px; transition: opacity 0.2s;
+      width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 700;
+      cursor: pointer; font-size: 14px; transition: opacity 0.2s;
     }
     .btn-primary { background: var(--primary); color: white; }
-    .btn-primary:hover { opacity: 0.9; }
+    .btn-admin { background: #37474f; color: white; margin-top: 6px; }
     .btn-outline { background: white; border: 1px solid var(--primary); color: var(--primary); margin-top: 8px; }
+    .btn-green { background: var(--accent-green); color: white; }
 
-    /* Seat Grid UI */
+    /* Cards & Lists */
     .bus-info-card {
-      background: #e3f2fd; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+      background: #e3f2fd; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
       display: flex; justify-content: space-between; align-items: center;
     }
-    .legend {
-      display: flex; justify-content: space-around; margin-bottom: 12px; font-size: 12px;
+    .admin-card {
+      background: #eceff1; border-radius: 10px; padding: 12px; margin-bottom: 10px; border-left: 4px solid #455a64;
     }
-    .legend-item { display: flex; align-items: center; gap: 5px; }
-    .legend-dot { width: 14px; height: 14px; border-radius: 4px; }
+    .admin-tab-bar {
+      display: flex; background: #37474f; color: white; border-radius: 8px; margin-bottom: 14px;
+    }
+    .admin-tab {
+      flex: 1; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .admin-tab.active { background: #263238; border-bottom: 3px solid #ffb300; }
+
+    /* Seat Grid UI */
+    .legend {
+      display: flex; justify-content: space-around; margin-bottom: 10px; font-size: 11px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     .dot-free { background: var(--accent-green); }
     .dot-taken { background: var(--occupied-red); }
     .dot-selected { background: var(--selected); }
 
     .seat-grid-container {
-      background: #fafafa; border: 2px dashed #b0bec5; border-radius: 16px; padding: 14px;
+      background: #fafafa; border: 2px dashed #b0bec5; border-radius: 14px; padding: 12px;
       flex: 1; overflow-y: auto;
     }
     .driver-row {
-      text-align: right; margin-bottom: 12px; font-size: 12px; font-weight: bold; color: #607d8b;
+      text-align: right; margin-bottom: 10px; font-size: 11px; font-weight: bold; color: #607d8b;
     }
     .seat-row {
-      display: grid; grid-template-columns: 1fr 1fr 20px 1fr 1fr; gap: 8px; margin-bottom: 8px;
+      display: grid; grid-template-columns: 1fr 1fr 20px 1fr 1fr; gap: 6px; margin-bottom: 6px;
     }
     .seat {
-      background: var(--accent-green); color: white; border-radius: 6px; padding: 10px 0;
-      text-align: center; font-size: 13px; font-weight: bold; cursor: pointer; user-select: none;
+      background: var(--accent-green); color: white; border-radius: 6px; padding: 8px 0;
+      text-align: center; font-size: 12px; font-weight: bold; cursor: pointer; user-select: none;
     }
-    .seat.taken { background: var(--occupied-red); cursor: not-allowed; }
-    .seat.selected { background: var(--selected); outline: 3px solid #0288d1; }
-    .aisle { }
+    .seat.taken { background: var(--occupied-red); }
+    .seat.selected { background: var(--selected); outline: 2px solid #0288d1; }
 
-    /* Confirmation Modal / Bottom Sheet */
     .checkout-sheet {
-      background: white; border-top: 1px solid #e0e0e0; padding: 16px; border-radius: 16px 16px 0 0;
+      background: white; border-top: 1px solid #e0e0e0; padding: 14px; border-radius: 14px 14px 0 0;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
     }
-    .ticket-summary { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
-
-    /* Ticket Receipt */
     .ticket-card {
-      background: #fff8e1; border: 2px solid #ffe082; border-radius: 16px; padding: 20px;
-      text-align: center; margin-top: 20px; position: relative;
+      background: #fff8e1; border: 2px solid #ffe082; border-radius: 14px; padding: 18px;
+      text-align: center; margin-top: 15px;
     }
-    .ticket-title { font-size: 18px; font-weight: bold; color: #ff8f00; margin-bottom: 10px; }
-    .qr-mock {
-      width: 130px; height: 130px; background: #37474f; margin: 15px auto; border-radius: 8px;
-      display: flex; justify-content: center; align-items: center; color: white; font-size: 11px;
-    }
-
-    /* GPS Telemetry screen */
-    .telemetry-card {
-      background: #eceff1; border-radius: 12px; padding: 16px; margin-top: 15px; font-family: monospace;
-    }
-    .telemetry-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
   </style>
 </head>
 <body>
 
   <div class="header-bar">
-    <h1>CityBus Go — University Group Project</h1>
-    <p>Real-Time Bus Ticket Issuing & Seat Availability System (Full Interactive Simulator)</p>
+    <h1>CityBus Go — Integrated System</h1>
+    <p>Passenger Mode • Conductor Mode • Fleet Admin Management Console</p>
   </div>
 
   <div class="app-viewport">
@@ -155,74 +154,106 @@
       <span>4G • 98%</span>
     </div>
 
-    <div class="app-header">
+    <div class="app-header" id="appHeader">
       <h2 id="headerTitle">CityBus Go</h2>
       <span class="role-badge" id="roleBadge">Demo</span>
     </div>
 
-    <!-- 1. LOGIN / ROLE SCREEN -->
+    <!-- 1. AUTH SCREEN WITH ROLE SELECTOR -->
     <div class="screen active" id="authScreen">
       <div class="auth-box">
         <div class="bus-icon">🚌</div>
-        <h2 style="margin-bottom: 6px;">Welcome Aboard</h2>
-        <p style="color: #666; font-size: 13px; margin-bottom: 24px;">Select your mode to test the system live</p>
+        <h2 style="margin-bottom: 4px;">Transit Portal</h2>
+        <p style="color: #666; font-size: 13px; margin-bottom: 20px;">Select your account access level:</p>
         
         <div class="form-group">
-          <label>Account Mode / Role</label>
+          <label>Account Role</label>
           <select id="userRoleSelect">
             <option value="passenger">Passenger Mode (Search & Buy Seat)</option>
-            <option value="conductor">Conductor Mode (Issue Tickets & Manage)</option>
+            <option value="conductor">Conductor Mode (Issue Tickets & Free Seats)</option>
+            <option value="admin">Fleet Admin Mode (Manage Fleet, Routes, Dispatch)</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label>Full Name</label>
+          <label>User Name</label>
           <input type="text" id="userNameInput" value="Alex Fernando">
         </div>
 
-        <button class="btn btn-primary" onclick="handleAuth()">ENTER APPLICATION</button>
+        <button class="btn btn-primary" onclick="handleAuth()">ENTER PORTAL</button>
       </div>
     </div>
 
-    <!-- 2. PASSENGER SEARCH SCREEN -->
+    <!-- 2. ADMIN CONSOLE SCREEN -->
+    <div class="screen" id="adminScreen">
+      <div class="admin-tab-bar">
+        <div class="admin-tab active" id="tabBuses" onclick="switchAdminTab('buses')">Fleet Buses</div>
+        <div class="admin-tab" id="tabRoutes" onclick="switchAdminTab('routes')">Routes</div>
+        <div class="admin-tab" id="tabDispatch" onclick="switchAdminTab('dispatch')">Dispatch / Conductors</div>
+      </div>
+
+      <!-- Admin Tab 1: Buses -->
+      <div id="adminBusesView">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h4 style="font-size: 14px;">Registered Fleet (2 Active)</h4>
+          <button class="btn btn-primary" style="width: auto; padding: 6px 10px; font-size: 11px;" onclick="promptAddBus()">+ Add Bus</button>
+        </div>
+        <div id="adminBusList"></div>
+      </div>
+
+      <!-- Admin Tab 2: Routes -->
+      <div id="adminRoutesView" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h4 style="font-size: 14px;">Transit Routes</h4>
+          <button class="btn btn-green" style="width: auto; padding: 6px 10px; font-size: 11px;" onclick="promptAddRoute()">+ New Route</button>
+        </div>
+        <div id="adminRouteList"></div>
+      </div>
+
+      <!-- Admin Tab 3: Conductors -->
+      <div id="adminDispatchView" style="display: none;">
+        <h4 style="font-size: 14px; margin-bottom: 10px;">Approved Conductors & Assignments</h4>
+        <div class="admin-card">
+          <strong>Perera K. (Conductor ID: #COND-101)</strong>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Assigned: WP-ND-1024 (Route 138)</div>
+          <div style="font-size: 11px; color: var(--accent-green); font-weight: bold;">Status: ON ACTIVE SHIFT</div>
+        </div>
+        <div class="admin-card">
+          <strong>Silva M. (Conductor ID: #COND-102)</strong>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Assigned: WP-NA-9081 (Route 120)</div>
+          <div style="font-size: 11px; color: var(--accent-green); font-weight: bold;">Status: ON ACTIVE SHIFT</div>
+        </div>
+      </div>
+
+      <button class="btn btn-outline" style="margin-top: auto;" onclick="logout()">LOGOUT ADMIN</button>
+    </div>
+
+    <!-- 3. PASSENGER SEARCH SCREEN -->
     <div class="screen" id="passengerSearchScreen">
-      <h3 style="margin-bottom: 12px;">Find Active Bus</h3>
+      <h3 style="margin-bottom: 10px;">Find Active Bus</h3>
       <div class="form-group">
         <label>Enter Registration Number Plate</label>
         <input type="text" id="busPlateInput" value="WP-ND-1024" placeholder="e.g. WP-ND-1024">
       </div>
       <button class="btn btn-primary" onclick="searchBus()">FIND BUS & SEAT MAP</button>
       
-      <div style="margin-top: 24px;">
-        <p style="font-size: 12px; font-weight: bold; color: #78909c; margin-bottom: 8px;">SAMPLE ACTIVE BUSES</p>
-        <div class="bus-info-card" onclick="quickSelectBus('WP-ND-1024')" style="cursor: pointer;">
-          <div>
-            <strong>WP-ND-1024</strong> (Route 138)
-            <div style="font-size: 12px; color: #666;">Colombo Fort ➔ Kottawa</div>
-          </div>
-          <span style="color: var(--accent-green); font-weight: bold;" id="bus1Count">18 Free</span>
-        </div>
-        <div class="bus-info-card" onclick="quickSelectBus('WP-NA-9081')" style="cursor: pointer;">
-          <div>
-            <strong>WP-NA-9081</strong> (Route 120)
-            <div style="font-size: 12px; color: #666;">Pettah ➔ Horana</div>
-          </div>
-          <span style="color: var(--accent-green); font-weight: bold;" id="bus2Count">25 Free</span>
-        </div>
+      <div style="margin-top: 20px;">
+        <p style="font-size: 12px; font-weight: bold; color: #78909c; margin-bottom: 8px;">ACTIVE FLEET BUSES</p>
+        <div id="passengerFleetList"></div>
       </div>
 
       <button class="btn btn-outline" style="margin-top: auto;" onclick="openGpsScreen()">📡 OPEN GPS TELEMETRY TEST</button>
       <button class="btn btn-outline" onclick="logout()">LOGOUT</button>
     </div>
 
-    <!-- 3. SEAT MAP SCREEN (PASSENGER / CONDUCTOR) -->
+    <!-- 4. SEAT MAP SCREEN -->
     <div class="screen" id="seatMapScreen">
       <div class="bus-info-card">
         <div>
           <strong id="seatMapBusPlate">WP-ND-1024</strong>
           <div id="seatMapRoute" style="font-size: 12px; color: #666;">Route 138 • Fare: Rs. 150</div>
         </div>
-        <button class="btn btn-outline" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="backToSearch()">Back</button>
+        <button class="btn btn-outline" style="width: auto; padding: 6px 12px; font-size: 11px;" onclick="backToSearch()">Back</button>
       </div>
 
       <div class="legend">
@@ -237,71 +268,75 @@
       </div>
 
       <div class="checkout-sheet" id="checkoutSheet" style="display: none;">
-        <div class="ticket-summary">
-          <span>Seat Selected: <strong id="selectedSeatNum">-</strong></span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px;">
+          <span>Seat: <strong id="selectedSeatNum">-</strong></span>
           <span>Fare: <strong>Rs. 150.00</strong></span>
         </div>
-        <button class="btn btn-primary" id="confirmActionBtn" onclick="confirmBooking()">CONFIRM BOOKING (ATOMIC)</button>
+        <button class="btn btn-primary" id="confirmActionBtn" onclick="confirmBooking()">CONFIRM BOOKING</button>
       </div>
     </div>
 
-    <!-- 4. TICKET CONFIRMATION SCREEN -->
+    <!-- 5. TICKET RECEIPT SCREEN -->
     <div class="screen" id="ticketScreen">
       <div class="ticket-card">
-        <div class="ticket-title">✓ TICKET CONFIRMED</div>
+        <div style="font-size: 16px; font-weight: bold; color: #ff8f00;">✓ TICKET CONFIRMED</div>
         <p style="font-size: 12px; color: #666;" id="ticketIdDisplay">Ticket #TKT-891024</p>
-        <div class="qr-mock">[ VALID DIGITAL QR ]</div>
-        <div style="text-align: left; font-size: 13px; line-height: 1.8;">
+        <div style="width: 110px; height: 110px; background: #37474f; margin: 12px auto; border-radius: 8px; display: flex; justify-content: center; align-items: center; color: white; font-size: 10px;">[ QR CODE ]</div>
+        <div style="text-align: left; font-size: 12px; line-height: 1.7;">
           <div><strong>Passenger:</strong> <span id="ticketPassName">Alex</span></div>
           <div><strong>Bus Plate:</strong> <span id="ticketBusPlate">WP-ND-1024</span></div>
           <div><strong>Seat:</strong> <span id="ticketSeatNum">18</span></div>
-          <div><strong>Route:</strong> 138 (Colombo - Kottawa)</div>
-          <div><strong>Status:</strong> PAID & CONFIRMED</div>
+          <div><strong>Route:</strong> 138 (Colombo Fort - Kottawa)</div>
+          <div><strong>Status:</strong> PAID (Cash On Board)</div>
         </div>
       </div>
-      <button class="btn btn-primary" style="margin-top: 20px;" onclick="backToSearch()">BOOK ANOTHER SEAT</button>
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="backToSearch()">BACK TO SEATS</button>
     </div>
 
-    <!-- 5. GPS DIAGNOSTICS SCREEN -->
+    <!-- 6. GPS SCREEN -->
     <div class="screen" id="gpsScreen">
       <h3>Live GPS Telemetry (RTBT-16)</h3>
-      <p style="font-size: 12px; color: #666;">Streaming device coordinates for bus tracking</p>
+      <p style="font-size: 12px; color: #666;">Conductor device position broadcast</p>
       
-      <div class="telemetry-card">
-        <div class="telemetry-row"><span>STATUS:</span><span style="color: var(--accent-green); font-weight: bold;">STREAMING FIX</span></div>
-        <div class="telemetry-row"><span>LATITUDE:</span><span id="gpsLat">6.927079</span></div>
-        <div class="telemetry-row"><span>LONGITUDE:</span><span id="gpsLng">79.861244</span></div>
-        <div class="telemetry-row"><span>ACCURACY:</span><span id="gpsAcc">3.4 m</span></div>
-        <div class="telemetry-row"><span>SPEED:</span><span id="gpsSpd">32.4 km/h</span></div>
-        <div class="telemetry-row"><span>UPDATED:</span><span id="gpsTime">Just now</span></div>
+      <div style="background: #eceff1; border-radius: 10px; padding: 14px; margin-top: 14px; font-family: monospace; font-size: 13px;">
+        <div>STATUS:    <strong style="color: var(--accent-green);">BROADCASTING</strong></div>
+        <div>LATITUDE:  <span id="gpsLat">6.927079</span></div>
+        <div>LONGITUDE: <span id="gpsLng">79.861244</span></div>
+        <div>ACCURACY:  <span id="gpsAcc">3.4 m</span></div>
+        <div>SPEED:     <span id="gpsSpd">32.4 km/h</span></div>
       </div>
 
-      <button class="btn btn-primary" style="margin-top: 20px;" onclick="refreshGps()">REFRESH PING</button>
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="refreshGps()">REFRESH PING</button>
       <button class="btn btn-outline" onclick="backToSearch()">BACK</button>
     </div>
   </div>
 
   <script>
-    // In-memory synchronized database state
     const appState = {
       user: null,
       selectedBus: 'WP-ND-1024',
       selectedSeat: null,
+      fleet: [
+        { id: 'bus_1', plate: 'WP-ND-1024', route: '138', origin: 'Colombo Fort', dest: 'Kottawa', fare: 150, conductor: 'Perera K.' },
+        { id: 'bus_2', plate: 'WP-NA-9081', route: '120', origin: 'Pettah', dest: 'Horana', fare: 220, conductor: 'Silva M.' }
+      ],
+      routes: [
+        { num: '138', origin: 'Colombo Fort', dest: 'Kottawa', fare: 150 },
+        { num: '120', origin: 'Pettah', dest: 'Horana', fare: 220 }
+      ],
       seats: {}
     };
 
-    // Initialize 2 buses with 40 seats each
     function initSeats() {
-      ['WP-ND-1024', 'WP-NA-9081'].forEach(plate => {
-        appState.seats[plate] = {};
+      appState.fleet.forEach(b => {
+        appState.seats[b.plate] = {};
         for (let i = 1; i <= 40; i++) {
           const num = i < 10 ? '0' + i : '' + i;
-          // Randomly take a few seats to simulate live conditions
           const isTaken = (i === 3 || i === 4 || i === 7 || i === 8 || i === 12);
-          appState.seats[plate][num] = {
+          appState.seats[b.plate][num] = {
             seatNumber: num,
             status: isTaken ? 'taken' : 'available',
-            bookedBy: isTaken ? 'Walk-in Passenger' : null
+            bookedBy: isTaken ? 'Walk-in' : null
           };
         }
       });
@@ -318,12 +353,20 @@
       const name = document.getElementById('userNameInput').value.trim() || 'User';
       appState.user = { name, role };
 
-      document.getElementById('roleBadge').innerText = role;
-      document.getElementById('headerTitle').innerText = role === 'conductor' ? 'Conductor Mode' : 'Passenger Mode';
+      document.getElementById('roleBadge').innerText = role.toUpperCase();
+      const header = document.getElementById('appHeader');
+      header.className = 'app-header' + (role === 'admin' ? ' admin' : '');
 
-      if (role === 'conductor') {
+      if (role === 'admin') {
+        document.getElementById('headerTitle').innerText = 'Admin Console';
+        renderAdmin();
+        showScreen('adminScreen');
+      } else if (role === 'conductor') {
+        document.getElementById('headerTitle').innerText = 'Conductor Mode';
         quickSelectBus('WP-ND-1024');
       } else {
+        document.getElementById('headerTitle').innerText = 'Passenger Mode';
+        renderPassengerFleet();
         showScreen('passengerSearchScreen');
       }
     }
@@ -332,7 +375,97 @@
       appState.user = null;
       document.getElementById('roleBadge').innerText = 'Demo';
       document.getElementById('headerTitle').innerText = 'CityBus Go';
+      document.getElementById('appHeader').className = 'app-header';
       showScreen('authScreen');
+    }
+
+    // --- Admin Views ---
+    function switchAdminTab(tab) {
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+      document.getElementById('adminBusesView').style.display = tab === 'buses' ? 'block' : 'none';
+      document.getElementById('adminRoutesView').style.display = tab === 'routes' ? 'block' : 'none';
+      document.getElementById('adminDispatchView').style.display = tab === 'dispatch' ? 'block' : 'none';
+    }
+
+    function renderAdmin() {
+      const busList = document.getElementById('adminBusList');
+      busList.innerHTML = '';
+      appState.fleet.forEach(b => {
+        const freeCount = Object.values(appState.seats[b.plate] || {}).filter(s => s.status === 'available').length;
+        const div = document.createElement('div');
+        div.className = 'admin-card';
+        div.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>${b.plate} (Route ${b.route})</strong>
+            <span style="color:var(--accent-green); font-size:11px; font-weight:bold;">${freeCount}/40 Free</span>
+          </div>
+          <div style="font-size:12px; color:#555; margin-top:4px;">${b.origin} ➔ ${b.dest} | Conductor: ${b.conductor}</div>
+          <button class="btn btn-outline" style="font-size:11px; padding:4px 8px; margin-top:8px; width:auto;" onclick="reassignConductor('${b.plate}')">Change Conductor</button>
+        `;
+        busList.appendChild(div);
+      });
+
+      const routeList = document.getElementById('adminRouteList');
+      routeList.innerHTML = '';
+      appState.routes.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'admin-card';
+        div.innerHTML = `
+          <strong>Route ${r.num}: ${r.origin} ➔ ${r.dest}</strong>
+          <div style="font-size:12px; color:#555; margin-top:2px;">Standard Fare: Rs. ${r.fare}.00</div>
+        `;
+        routeList.appendChild(div);
+      });
+    }
+
+    function reassignConductor(plate) {
+      const newCond = prompt('Enter new conductor name for ' + plate + ':', 'Silva M.');
+      if (newCond) {
+        const bus = appState.fleet.find(b => b.plate === plate);
+        if (bus) bus.conductor = newCond;
+        renderAdmin();
+      }
+    }
+
+    function promptAddBus() {
+      const plate = prompt('Enter registration plate (e.g. WP-ND-5544):', 'WP-ND-5544');
+      if (plate) {
+        appState.fleet.push({ id: 'bus_' + Date.now(), plate: plate, route: '138', origin: 'Colombo Fort', dest: 'Kottawa', fare: 150, conductor: 'Unassigned' });
+        initSeats();
+        renderAdmin();
+      }
+    }
+
+    function promptAddRoute() {
+      const num = prompt('Enter route number (e.g. 177):', '177');
+      const origin = prompt('Origin terminal:', 'Kollupitiya');
+      const dest = prompt('Destination terminal:', 'Kaduwela');
+      if (num && origin && dest) {
+        appState.routes.push({ num, origin, dest, fare: 160 });
+        renderAdmin();
+      }
+    }
+
+    // --- Passenger & Conductor Views ---
+    function renderPassengerFleet() {
+      const container = document.getElementById('passengerFleetList');
+      container.innerHTML = '';
+      appState.fleet.forEach(b => {
+        const freeCount = Object.values(appState.seats[b.plate] || {}).filter(s => s.status === 'available').length;
+        const div = document.createElement('div');
+        div.className = 'bus-info-card';
+        div.style.cursor = 'pointer';
+        div.onclick = () => quickSelectBus(b.plate);
+        div.innerHTML = `
+          <div>
+            <strong>${b.plate}</strong> (Route ${b.route})
+            <div style="font-size: 11px; color: #666;">${b.origin} ➔ ${b.dest} • Fare: Rs. ${b.fare}</div>
+          </div>
+          <span style="color: var(--accent-green); font-weight: bold; font-size: 12px;">${freeCount} Free</span>
+        `;
+        container.appendChild(div);
+      });
     }
 
     function quickSelectBus(plate) {
@@ -342,23 +475,25 @@
 
     function searchBus() {
       const plate = document.getElementById('busPlateInput').value.trim().toUpperCase();
-      if (!appState.seats[plate]) {
-        alert('Bus with plate ' + plate + ' not found in active fleet.');
+      const bus = appState.fleet.find(b => b.plate === plate);
+      if (!bus) {
+        alert('Bus ' + plate + ' not found in active fleet.');
         return;
       }
       appState.selectedBus = plate;
       appState.selectedSeat = null;
       document.getElementById('seatMapBusPlate').innerText = plate;
-      document.getElementById('seatMapRoute').innerText = plate === 'WP-ND-1024' ? 'Route 138 • Fare: Rs. 150' : 'Route 120 • Fare: Rs. 220';
+      document.getElementById('seatMapRoute').innerText = `Route ${bus.route} (${bus.origin} ➔ ${bus.dest}) • Rs. ${bus.fare}`;
       document.getElementById('checkoutSheet').style.display = 'none';
       renderSeatMap();
       showScreen('seatMapScreen');
     }
 
     function backToSearch() {
-      if (appState.user.role === 'conductor') {
+      if (appState.user.role === 'conductor' || appState.user.role === 'admin') {
         logout();
       } else {
+        renderPassengerFleet();
         showScreen('passengerSearchScreen');
       }
     }
@@ -379,11 +514,8 @@
 
         rowDiv.appendChild(createSeatElement(s1, busSeats[s1]));
         rowDiv.appendChild(createSeatElement(s2, busSeats[s2]));
-
         const aisle = document.createElement('div');
-        aisle.className = 'aisle';
         rowDiv.appendChild(aisle);
-
         rowDiv.appendChild(createSeatElement(s3, busSeats[s3]));
         rowDiv.appendChild(createSeatElement(s4, busSeats[s4]));
 
@@ -398,15 +530,26 @@
       el.innerText = num;
 
       el.onclick = () => {
-        if (data.status === 'taken') {
-          alert('Seat #' + num + ' is already taken by ' + data.bookedBy);
+        // Conductor tapping an occupied seat -> Free the seat (passenger departed)
+        if (appState.user.role === 'conductor' && data.status === 'taken') {
+          if (confirm(`Free seat #${num}? Mark as available since passenger got off?`)) {
+            data.status = 'available';
+            data.bookedBy = null;
+            renderSeatMap();
+          }
           return;
         }
+
+        if (data.status === 'taken') {
+          alert('Seat #' + num + ' is occupied.');
+          return;
+        }
+
         appState.selectedSeat = num;
         document.getElementById('selectedSeatNum').innerText = '#' + num;
         document.getElementById('checkoutSheet').style.display = 'block';
         document.getElementById('confirmActionBtn').innerText = 
-          appState.user.role === 'conductor' ? 'ISSUE CASH TICKET (SEAT #' + num + ')' : 'BUY TICKET (SEAT #' + num + ')';
+          appState.user.role === 'conductor' ? 'ISSUE CASH TICKET (SEAT #' + num + ')' : 'CONFIRM BOOKING (SEAT #' + num + ')';
         renderSeatMap();
       };
       return el;
@@ -417,9 +560,8 @@
       const num = appState.selectedSeat;
       const busSeats = appState.seats[appState.selectedBus];
 
-      // Atomic validation simulation
       if (busSeats[num].status === 'taken') {
-        alert('Conflict detected! Seat #' + num + ' was just reserved by another user.');
+        alert('Seat #' + num + ' was just booked by another user!');
         renderSeatMap();
         return;
       }
@@ -442,19 +584,11 @@
     }
 
     function refreshGps() {
-      // Simulate live jitter
-      const lat = (6.927079 + (Math.random() - 0.5) * 0.005).toFixed(6);
-      const lng = (79.861244 + (Math.random() - 0.5) * 0.005).toFixed(6);
-      const acc = (2.8 + Math.random() * 2).toFixed(1);
-      const spd = (25 + Math.random() * 15).toFixed(1);
-
-      document.getElementById('gpsLat').innerText = lat;
-      document.getElementById('gpsLng').innerText = lng;
-      document.getElementById('gpsAcc').innerText = acc + ' m';
-      document.getElementById('gpsSpd').innerText = spd + ' km/h';
-      document.getElementById('gpsTime').innerText = new Date().toLocaleTimeString();
+      document.getElementById('gpsLat').innerText = (6.927079 + (Math.random() - 0.5) * 0.004).toFixed(6);
+      document.getElementById('gpsLng').innerText = (79.861244 + (Math.random() - 0.5) * 0.004).toFixed(6);
+      document.getElementById('gpsAcc').innerText = (2.5 + Math.random() * 2).toFixed(1) + ' m';
+      document.getElementById('gpsSpd').innerText = (28 + Math.random() * 12).toFixed(1) + ' km/h';
     }
   </script>
 </body>
 </html>
-
