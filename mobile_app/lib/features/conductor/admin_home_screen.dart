@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/bus_model.dart';
-import '../../services/bus_service.dart';
-import '../../utils/app_theme.dart';
-import '../../utils/app_constants.dart';
+import '../buses/bus_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -256,3 +256,4 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
     );
   }
 }
+

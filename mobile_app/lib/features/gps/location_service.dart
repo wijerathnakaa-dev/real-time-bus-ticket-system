@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/location_model.dart';
-import '../utils/app_constants.dart';
+import '../../models/location_model.dart';
+import '../../core/constants/app_constants.dart';
 
 class LocationService extends ChangeNotifier {
   LocationModel? _currentLocation;

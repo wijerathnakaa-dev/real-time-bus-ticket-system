@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../services/location_service.dart';
-import '../../utils/app_theme.dart';
+import '../gps/location_service.dart';
+import '../../core/theme/app_theme.dart';
 
 class GpsDiagnosticScreen extends StatefulWidget {
   const GpsDiagnosticScreen({super.key});

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
-import '../../utils/app_theme.dart';
+import '../authentication/auth_service.dart';
+import '../../core/theme/app_theme.dart';
 import 'find_bus_screen.dart';
 import 'my_tickets_screen.dart';
-import '../common/gps_diagnostic_screen.dart';
+import '../tracking/gps_diagnostic_screen.dart';
 
 class PassengerHomeScreen extends StatelessWidget {
   const PassengerHomeScreen({super.key});

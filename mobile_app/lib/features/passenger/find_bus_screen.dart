@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/bus_model.dart';
-import '../../services/bus_service.dart';
-import '../../services/number_plate_ocr_service.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../utils/app_theme.dart';
+import '../buses/bus_service.dart';
+import '../buses/number_plate_ocr_service.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../core/theme/app_theme.dart';
 import 'seat_map_screen.dart';
 
 class FindBusScreen extends StatefulWidget {

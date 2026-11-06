@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/bus_model.dart';
 import '../../models/seat_model.dart';
-import '../../services/bus_service.dart';
-import '../../services/ticket_service.dart';
-import '../../widgets/seat_grid_widget.dart';
-import '../../utils/app_theme.dart';
+import '../buses/bus_service.dart';
+import '../tickets/ticket_service.dart';
+import '../../shared/widgets/seat_grid_widget.dart';
+import '../../core/theme/app_theme.dart';
 import 'issue_ticket_modal.dart';
 
 class ConductorSeatMapScreen extends StatefulWidget {

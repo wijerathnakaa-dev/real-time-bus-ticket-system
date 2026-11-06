@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../utils/app_theme.dart';
-import '../../utils/app_constants.dart';
+import 'auth_service.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

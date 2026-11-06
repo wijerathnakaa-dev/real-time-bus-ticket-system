@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/ticket_model.dart';
-import '../utils/app_constants.dart';
+import '../../models/ticket_model.dart';
+import '../../core/constants/app_constants.dart';
 
 class TicketService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

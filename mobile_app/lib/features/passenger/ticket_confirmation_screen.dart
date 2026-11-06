@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/ticket_model.dart';
-import '../../utils/app_theme.dart';
+import '../../core/theme/app_theme.dart';
 import 'my_tickets_screen.dart';
 
 class TicketConfirmationScreen extends StatelessWidget {

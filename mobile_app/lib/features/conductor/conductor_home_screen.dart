@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/bus_model.dart';
-import '../../services/auth_service.dart';
-import '../../services/bus_service.dart';
-import '../../services/location_service.dart';
-import '../../utils/app_theme.dart';
+import '../authentication/auth_service.dart';
+import '../buses/bus_service.dart';
+import '../gps/location_service.dart';
+import '../../core/theme/app_theme.dart';
 import 'conductor_seat_map_screen.dart';
-import '../common/gps_diagnostic_screen.dart';
+import '../tracking/gps_diagnostic_screen.dart';
 
 class ConductorHomeScreen extends StatelessWidget {
   const ConductorHomeScreen({super.key});

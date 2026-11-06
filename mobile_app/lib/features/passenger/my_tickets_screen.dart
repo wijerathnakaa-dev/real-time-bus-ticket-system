@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/ticket_model.dart';
-import '../../services/ticket_service.dart';
-import '../../utils/app_theme.dart';
+import '../tickets/ticket_service.dart';
+import '../../core/theme/app_theme.dart';
 
 class MyTicketsScreen extends StatelessWidget {
   final String passengerId;

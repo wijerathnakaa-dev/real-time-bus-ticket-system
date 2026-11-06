@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/bus_model.dart';
-import '../../services/ticket_service.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../utils/app_theme.dart';
+import '../tickets/ticket_service.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../core/theme/app_theme.dart';
 
 class IssueTicketModal extends StatefulWidget {
   final BusModel bus;

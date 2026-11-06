@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/seat_model.dart';
-import '../utils/app_theme.dart';
+import '../../models/seat_model.dart';
+import '../../core/theme/app_theme.dart';
 
 typedef OnSeatSelectedCallback = void Function(String seatNumber);
 
