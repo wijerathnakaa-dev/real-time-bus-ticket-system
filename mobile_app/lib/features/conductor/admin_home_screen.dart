@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/bus_model.dart';
-import '../buses/bus_service.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/api/api_client.dart';
+import '../../core/theme/app_theme.dart';
+import '../../models/bus_model.dart';
+import '../authentication/auth_service.dart';
+import '../buses/bus_service.dart';
+
+/// On-the-go admin view inside the app. Full management (routes, conductors,
+/// tickets, payments, live map) lives in the Admin Web Dashboard (admin_web/).
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
 
@@ -12,248 +16,93 @@ class AdminHomeScreen extends StatefulWidget {
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
 }
 
-class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final BusService _busService = BusService();
+class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  final _service = BusService();
+  late Future<(Map<String, dynamic>, List<BusModel>)> _data = _load();
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+  Future<(Map<String, dynamic>, List<BusModel>)> _load() async {
+    final stats = await ApiClient.instance.get('/admin/stats') as Map<String, dynamic>;
+    final buses = await _service.listBuses(includeUnapproved: true);
+    return (stats, buses);
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  // Assign Conductor to a Bus
-  void _showAssignConductorDialog(BusModel bus) {
-    final conductorIdController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Assign Conductor to ${bus.plateNumber}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Route ${bus.routeNumber}'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: conductorIdController,
-              decoration: const InputDecoration(
-                labelText: 'Conductor User UID',
-                hintText: 'Enter conductor user UID',
-                prefixIcon: Icon(Icons.badge_outlined),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final cid = conductorIdController.text.trim();
-              if (cid.isNotEmpty) {
-                // Update both bus and conductor user profile
-                await FirebaseFirestore.instance.collection('buses').doc(bus.id).update({
-                  'conductorId': cid,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
-                await FirebaseFirestore.instance.collection('users').doc(cid).update({
-                  'role': AppConstants.roleConductor,
-                  'assignedBusId': bus.id,
-                });
-                if (mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Assigned conductor $cid to ${bus.plateNumber}')),
-                  );
-                }
-              }
-            },
-            child: const Text('ASSIGN'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Create New Route
-  void _showCreateRouteDialog() {
-    final routeNumCtrl = TextEditingController();
-    final originCtrl = TextEditingController();
-    final destCtrl = TextEditingController();
-    final fareCtrl = TextEditingController(text: '150.0');
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add New Bus Route'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: routeNumCtrl, decoration: const InputDecoration(labelText: 'Route Number (e.g. 138)')),
-              const SizedBox(height: 8),
-              TextField(controller: originCtrl, decoration: const InputDecoration(labelText: 'Origin Terminal (e.g. Colombo Fort)')),
-              const SizedBox(height: 8),
-              TextField(controller: destCtrl, decoration: const InputDecoration(labelText: 'Destination (e.g. Kottawa)')),
-              const SizedBox(height: 8),
-              TextField(controller: fareCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Standard Fare (Rs.)')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final rNum = routeNumCtrl.text.trim();
-              final rId = 'route_$rNum';
-              await FirebaseFirestore.instance.collection('routes').doc(rId).set({
-                'routeNumber': rNum,
-                'origin': originCtrl.text.trim(),
-                'destination': destCtrl.text.trim(),
-                'standardFare': double.tryParse(fareCtrl.text) ?? 150.0,
-                'estimatedDurationMins': 45,
-              });
-              if (mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Route $rNum created successfully!')),
-                );
-              }
-            },
-            child: const Text('CREATE ROUTE'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _approve(BusModel b, bool approved) async {
+    try {
+      await _service.approveBus(b.id, approved);
+      setState(() => _data = _load());
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fleet Management Admin Console'),
+        title: const Text('CityBus Go - Admin'),
         backgroundColor: Colors.blueGrey.shade900,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.amber,
-          tabs: const [
-            Tab(icon: Icon(Icons.directions_bus), text: 'Fleet Buses'),
-            Tab(icon: Icon(Icons.alt_route), text: 'Transit Routes'),
-            Tab(icon: Icon(Icons.people), text: 'Conductors'),
-          ],
-        ),
+        actions: [IconButton(icon: const Icon(Icons.logout), onPressed: () => auth.logout())],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // 1. FLEET BUSES TAB
-          StreamBuilder<List<BusModel>>(
-            stream: _busService.streamActiveBuses(),
-            builder: (context, snapshot) {
-              final buses = snapshot.data ?? [];
-              if (buses.isEmpty) {
-                return const Center(child: Text('No buses registered in fleet.'));
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: buses.length,
-                itemBuilder: (context, index) {
-                  final bus = buses[index];
-                  return Card(
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: AppTheme.primaryDark,
-                        foregroundColor: Colors.white,
-                        child: Icon(Icons.directions_bus),
-                      ),
-                      title: Text(bus.plateNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Route ${bus.routeNumber} • Conductor: ${bus.conductorId.isEmpty ? "None" : bus.conductorId}\nCapacity: ${bus.totalSeats} seats'),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
-                        onPressed: () => _showAssignConductorDialog(bus),
-                        child: const Text('Assign Conductor', style: TextStyle(fontSize: 11)),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-
-          // 2. TRANSIT ROUTES TAB
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('routes').snapshots(),
-            builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? [];
-              return Scaffold(
-                floatingActionButton: FloatingActionButton(
-                  onPressed: _showCreateRouteDialog,
-                  backgroundColor: AppTheme.accentGreen,
-                  child: const Icon(Icons.add),
+      body: RefreshIndicator(
+        onRefresh: () async => setState(() => _data = _load()),
+        child: FutureBuilder<(Map<String, dynamic>, List<BusModel>)>(
+          future: _data,
+          builder: (context, snap) {
+            if (snap.hasError) return ListView(children: [Padding(padding: const EdgeInsets.all(24), child: Text(snap.error.toString()))]);
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+            final (stats, buses) = snap.data!;
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _stat('Buses on trip', '${stats['buses_on_trip']}/${stats['buses']}'),
+                    _stat('Pending approval', '${stats['buses_pending_approval']}'),
+                    _stat('Tickets today', '${stats['tickets_today']}'),
+                    _stat('Revenue today', 'Rs. ${(stats['revenue_today'] as num).toStringAsFixed(0)}'),
+                    _stat('Seats taken', '${stats['seats_taken']}/${stats['seats_total']}'),
+                    _stat('Routes', '${stats['routes']}'),
+                  ],
                 ),
-                body: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    return Card(
-                      elevation: 1,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: const Icon(Icons.route, color: AppTheme.primaryBlue),
-                        title: Text('Route ${data['routeNumber']}: ${data['origin']} ➔ ${data['destination']}'),
-                        subtitle: Text('Standard Fare: Rs. ${(data['standardFare'] as num?)?.toStringAsFixed(2) ?? "150.00"} • Est: ${data['estimatedDurationMins']} mins'),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-
-          // 3. CONDUCTORS & USER ROLES TAB
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'conductor').snapshots(),
-            builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? [];
-              if (docs.isEmpty) {
-                return const Center(child: Text('No approved conductors found.'));
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
-                  final data = docs[index].data() as Map<String, dynamic>;
-                  return Card(
-                    elevation: 1,
-                    margin: const EdgeInsets.only(bottom: 10),
+                const SizedBox(height: 16),
+                const Text('Fleet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                for (final b in buses)
+                  Card(
                     child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Colors.deepOrange,
-                        foregroundColor: Colors.white,
-                        child: Icon(Icons.badge),
-                      ),
-                      title: Text(data['name'] ?? 'Conductor', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Email: ${data['email']}\nAssigned Vehicle: ${data['assignedBusId'] ?? "Not Assigned"}'),
-                      trailing: const Icon(Icons.verified_user, color: AppTheme.accentGreen),
+                      leading: Icon(Icons.directions_bus, color: b.onTrip ? AppTheme.accentGreen : Colors.grey),
+                      title: Text(b.plateNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('${b.routeNumber.isEmpty ? 'No route' : 'Route ${b.routeNumber}'} - ${b.conductorName ?? 'no conductor'}\n'
+                          '${b.status} - ${b.availableSeats}/${b.totalSeats} free'),
+                      isThreeLine: true,
+                      trailing: b.approved
+                          ? const Icon(Icons.verified, color: AppTheme.accentGreen)
+                          : ElevatedButton(onPressed: () => _approve(b, true), child: const Text('APPROVE')),
                     ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
+                  ),
+                const SizedBox(height: 12),
+                const Text('Use the Admin Web Dashboard to manage routes, conductors, tickets and payments.',
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
-}
 
+  Widget _stat(String label, String value) => Container(
+        width: 160,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+            Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
+      );
+}

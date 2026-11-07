@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class UserModel {
   final String uid;
   final String name;
   final String email;
   final String? phone;
-  final String role; // 'passenger' or 'conductor'
+  final String role; // passenger | conductor | admin
   final String? assignedBusId;
   final DateTime createdAt;
 
@@ -21,29 +19,25 @@ class UserModel {
 
   bool get isConductor => role == 'conductor';
   bool get isPassenger => role == 'passenger';
+  bool get isAdmin => role == 'admin';
 
-  factory UserModel.fromMap(Map<String, dynamic> map, String uid) {
-    return UserModel(
-      uid: uid,
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      phone: map['phone'],
-      role: map['role'] ?? 'passenger',
-      assignedBusId: map['assignedBusId'],
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
+  factory UserModel.fromJson(Map<String, dynamic> j) => UserModel(
+        uid: j['id'] ?? '',
+        name: j['name'] ?? '',
+        email: j['email'] ?? '',
+        phone: j['phone'],
+        role: j['role'] ?? 'passenger',
+        assignedBusId: j['assigned_bus_id'],
+        createdAt: DateTime.tryParse(j['created_at'] ?? '') ?? DateTime.now(),
+      );
 
-  Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'name': name,
-      'email': email,
-      'phone': phone,
-      'role': role,
-      'assignedBusId': assignedBusId,
-      'createdAt': Timestamp.fromDate(createdAt),
-    };
-  }
+  Map<String, dynamic> toMap() => {
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'role': role,
+        'assignedBusId': assignedBusId,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }
-

@@ -2,20 +2,14 @@ class AppConstants {
   static const String appName = 'CityBus Go';
   static const String currencySymbol = 'Rs.';
 
-  // Firestore Collections
-  static const String colUsers = 'users';
-  static const String colBuses = 'buses';
-  static const String colRoutes = 'routes';
-  static const String colSeats = 'seats';
-  static const String colTickets = 'tickets';
-  static const String colLocations = 'bus_locations';
-
-  // User Roles
+  // User roles
   static const String rolePassenger = 'passenger';
   static const String roleConductor = 'conductor';
+  static const String roleAdmin = 'admin';
 
-  // Seat Statuses
+  // Seat statuses
   static const String seatAvailable = 'available';
   static const String seatTaken = 'taken';
-}
 
+  static String money(double v) => '$currencySymbol ${v.toStringAsFixed(2)}';
+}

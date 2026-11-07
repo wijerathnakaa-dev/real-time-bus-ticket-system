@@ -69,3 +69,14 @@ serviceAccountKey.json
 key.properties
 
 
+
+# Secrets and runtime data
+.env
+backend/.env
+**/firebase-service-account.json
+**/serviceAccountKey.json
+backend/uploads/
+node_modules/
+admin_web/dist/
+!.env.example
+**/android/build/

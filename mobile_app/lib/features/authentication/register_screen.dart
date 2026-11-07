@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
 
   bool _obscurePassword = true;
+  String _role = AppConstants.rolePassenger;
 
   @override
   void dispose() {
@@ -36,12 +37,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authService = Provider.of<AuthService>(context, listen: false);
-    // Registration strictly creates a passenger account. Conductor accounts are elevated by admin in Firestore.
+    // Passengers and conductors self-register; admin accounts are created by the system only.
     final success = await authService.register(
       name: _nameController.text,
       email: _emailController.text,
       password: _passwordController.text,
-      role: AppConstants.rolePassenger,
+      role: _role,
       phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
     );
 
@@ -78,6 +79,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: AppConstants.rolePassenger, label: Text('Passenger'), icon: Icon(Icons.person)),
+                      ButtonSegment(value: AppConstants.roleConductor, label: Text('Conductor'), icon: Icon(Icons.badge_outlined)),
+                    ],
+                    selected: {_role},
+                    onSelectionChanged: (s) => setState(() => _role = s.first),
+                  ),
+                  if (_role == AppConstants.roleConductor)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text('After sign-up you will set up your bus (number plate, seats, route). An admin approves it before ticketing starts.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    ),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(
@@ -140,7 +156,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.08),
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Row(

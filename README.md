@@ -1,64 +1,78 @@
-# Real-Time Bus Ticket Issuing and Seat Availability System
+# Real-Time Bus Ticket Issuing and Seat Availability System (CityBus Go)
 
-## Project Overview
-A multi-mode mobile application built for Sri Lankan transit commuters and conductors:
-- **Passenger Mode:** Find buses by number plate or OCR photo, view real-time seat occupancy grids, book tickets atomically, and view digital receipts.
-- **Conductor Mode:** Live vehicle seat dashboard, walk-in ticket issuing, and real-time GPS telemetry broadcasting.
+EC5406 Software Project. One Flutter app with **Passenger**, **Conductor** and **Admin** modes, an
+**Admin Web Dashboard**, and a **Go** backend on **MySQL** with live updates over **WebSocket** and a
+**Firebase Realtime Database** mirror — for long-distance expressway routes with fixed stops.
 
----
+```
+Flutter app (passenger / conductor / admin)  ─┐            ┌─ MySQL 8 (system of record)
+Admin web dashboard (React)                   ─┼─ Go API ───┼─ Firebase RTDB mirror + FCM push (optional)
+Conductor phone GPS                           ─┘  REST + WS └─ PayHere (sandbox / live, optional)
+```
 
-## Prerequisites
-1. **Flutter SDK:** Flutter 3.16+ (Dart 3.0+)
-2. **Android Studio / VS Code** with Flutter and Dart extensions
-3. **Android Device or Emulator:** Android 7.0 (API Level 24) or higher
-4. **Firebase Project:** Configured with Firebase Authentication (Email/Password) and Cloud Firestore.
+| Folder | What it is |
+|---|---|
+| `backend/` | Go (Gin) REST API + WebSocket hub, ETA engine, PayHere, Firebase mirror |
+| `mobile_app/` | Flutter app (Android; also builds for web) |
+| `admin_web/` | Admin Web Dashboard (React + Vite) |
+| `database/schema.sql` | MySQL schema (applied automatically by the backend) |
+| `test/` | API end-to-end, live-sync and per-sprint test runner |
+| `docs/agile/sprint-plan.md` | Agile sprints, Definition of Done, increment per sprint |
 
----
+## Quick start (local)
 
-## Step-by-Step Setup Guide
+Prerequisites: **Go 1.22+**, **MySQL 8**, **Flutter 3.24+** with Android Studio/SDK, **Node 18+**.
 
-### 1. Clone & Install Dependencies
+### 1. Backend
+No local MySQL? Run one in Docker (set `MYSQL_ROOT_PASSWORD` and `MYSQL_HOST_PORT`, e.g. 3308, in `deployment/docker/.env`):
 ```bash
-git clone <repo-url>
-cd "SW-Bus Ticket"
+cd deployment/docker && docker compose up -d mysql
+```
+Then point `MYSQL_DSN` at `127.0.0.1:<MYSQL_HOST_PORT>`.
+```bash
+cd backend
+cp .env.example .env        # set MYSQL_DSN to your MySQL user/password
+go run ./cmd/server         # creates the DB, applies the schema, seeds demo data, listens on :5000
+```
+Check: `http://localhost:5000/api/health`
+
+### 2. Admin web dashboard
+```bash
+cd admin_web
+npm install
+npm run dev                 # http://localhost:5173  (API URL in admin_web/.env, see .env.example)
+```
+
+### 3. Mobile app
+```bash
+cd mobile_app
 flutter pub get
+flutter run                 # Android emulator reaches the PC's backend at 10.0.2.2:5000
+flutter run --dart-define=API_URL=http://192.168.1.20:5000   # real phone on the same Wi-Fi
+flutter build apk --release
 ```
 
-### 2. Configure Firebase
-1. Open the [Firebase Console](https://console.firebase.google.com/) and create a new project: `citybus-go-rtbt`.
-2. Add an **Android Application** with Package Name:
-   ```text
-   com.university.real_time_bus_ticket
-   ```
-3. Download `google-services.json` and place it in:
-   ```text
-   android/app/google-services.json
-   ```
-   *(Note: This file is excluded in `.gitignore` to protect credentials).*
-4. Enable **Authentication** $\to$ Sign-in method $\to$ **Email/Password**.
-5. Enable **Cloud Firestore** in test or production mode.
-6. Deploy the security rules located in [`firestore.rules`](./firestore.rules):
-   ```bash
-   firebase deploy --only firestore:rules
-   ```
+### Demo accounts (created only in an empty database when `SEED_DEMO_DATA=true`)
+| Role | Email | Password |
+|---|---|---|
+| Admin | admin@citybus.lk | Admin@123 |
+| Conductor (bus NB-2451, Makumbura → Galle) | conductor1@citybus.lk | Conductor@123 |
+| Conductor (bus NC-7832, Colombo Fort → Katunayake) | conductor2@citybus.lk | Conductor@123 |
+| Passenger | passenger@citybus.lk | Passenger@123 |
 
-### 3. Run the Application
-Connect an Android device with USB debugging enabled or launch an Android emulator, then run:
+Change these or set `SEED_DEMO_DATA=false` before any real deployment.
+
+## Optional integrations
+
+| Integration | How to turn it on | Without it |
+|---|---|---|
+| Firebase RTDB + FCM push | Put the service-account JSON at `backend/firebase-service-account.json`, set `FIREBASE_DATABASE_URL`; put `google-services.json` in `mobile_app/android/app/` | Live data still flows over WebSocket; no push notifications |
+| PayHere | Set `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET` (and `PAYHERE_SANDBOX=true`) in `backend/.env`; `PUBLIC_BASE_URL` must be reachable by PayHere for the notify callback | Clearly-labelled simulated payment |
+| Google Maps (app) | `MAPS_API_KEY=...` in `mobile_app/android/local.properties`, run with `--dart-define=MAPS_ENABLED=true` | Stop-timeline progress view |
+| Google Maps (admin web) | `VITE_GOOGLE_MAPS_KEY=...` in `admin_web/.env` | Schematic live map |
+
+## Tests
 ```bash
-flutter run
+python test/run_sprint_tests.py all     # needs the backend running with demo data
 ```
-
-### 4. Running Unit Tests
-Execute the local test suite:
-```bash
-flutter test
-```
-
----
-
-## Sprint 2 Verification Checklist
-- [x] **RTBT-13:** Flutter clean architecture project setup with Passenger and Conductor modes.
-- [x] **RTBT-14:** Firebase Auth registration, role selection (`passenger`/`conductor`), login & session persistence.
-- [x] **RTBT-15:** Firestore security rules and seed data for routes, buses, and seats.
-- [x] **RTBT-16:** GPS Diagnostics Screen with location streaming, accuracy check, and permission failure handling.
-
+See `docs/agile/sprint-plan.md` for what each sprint's suite proves.

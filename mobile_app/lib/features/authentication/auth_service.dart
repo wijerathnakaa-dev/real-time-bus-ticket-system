@@ -1,45 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/user_model.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/api/api_client.dart';
+import '../../models/user_model.dart';
+
+/// Login/registration against the Go API (JWT). The token is persisted so the
+/// user stays signed in across app restarts.
 class AuthService extends ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const _tokenKey = 'auth_token';
+  final ApiClient _api = ApiClient.instance;
 
   UserModel? _currentUser;
   bool _isLoading = false;
+  bool _restoring = true;
   String? _errorMessage;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
+  bool get isRestoring => _restoring;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _auth.currentUser != null;
+  bool get isAuthenticated => _currentUser != null;
 
-  AuthService() {
-    _initUser();
-  }
-
-  Future<void> _initUser() async {
-    final firebaseUser = _auth.currentUser;
-    if (firebaseUser != null) {
-      await fetchUserData(firebaseUser.uid);
+  AuthService({bool restore = true}) {
+    if (restore) {
+      _restore();
+    } else {
+      _restoring = false;
     }
   }
 
-  Future<void> fetchUserData(String uid) async {
+  Future<void> _restore() async {
     try {
-      final doc = await _firestore.collection(AppConstants.colUsers).doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        _currentUser = UserModel.fromMap(doc.data()!, uid);
-        notifyListeners();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_tokenKey);
+      if (token != null) {
+        _api.token = token;
+        await refreshProfile();
       }
-    } catch (e) {
-      _errorMessage = 'Failed to load user profile: $e';
-      notifyListeners();
+    } catch (_) {
+      // Expired token or server unreachable: show the login screen.
+      _api.token = null;
     }
+    _restoring = false;
+    notifyListeners();
   }
+
+  /// Re-reads the profile (e.g. after an admin assigns a bus to this conductor).
+  Future<void> refreshProfile() async {
+    final me = await _api.get('/auth/me');
+    _currentUser = UserModel.fromJson(me as Map<String, dynamic>);
+    notifyListeners();
+  }
+
+  // Kept for screens written against the earlier API.
+  Future<void> fetchUserData(String uid) => refreshProfile();
 
   Future<bool> register({
     required String name,
@@ -47,74 +61,43 @@ class AuthService extends ChangeNotifier {
     required String password,
     required String role,
     String? phone,
-  }) async {
+  }) =>
+      _authenticate('/auth/register', {
+        'name': name.trim(),
+        'email': email.trim(),
+        'password': password,
+        'role': role,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      });
+
+  Future<bool> login({required String email, required String password}) =>
+      _authenticate('/auth/login', {'email': email.trim(), 'password': password});
+
+  Future<bool> _authenticate(String path, Map<String, dynamic> body) async {
     _setLoading(true);
     _errorMessage = null;
-
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-
-      final uid = credential.user!.uid;
-      final newUser = UserModel(
-        uid: uid,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone?.trim(),
-        role: role,
-        assignedBusId: null,
-        createdAt: DateTime.now(),
-      );
-
-      // Save user profile with role in Firestore
-      await _firestore
-          .collection(AppConstants.colUsers)
-          .doc(uid)
-          .set(newUser.toMap());
-
-      _currentUser = newUser;
+      final res = await _api.post(path, body) as Map<String, dynamic>;
+      _api.token = res['token'] as String;
+      _currentUser = UserModel.fromJson(res['user'] as Map<String, dynamic>);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, _api.token!);
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _getFriendlyAuthError(e);
-      _setLoading(false);
-      return false;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
     } catch (e) {
-      _errorMessage = 'Registration error: $e';
-      _setLoading(false);
-      return false;
+      _errorMessage = 'Something went wrong: $e';
     }
-  }
-
-  Future<bool> login({required String email, required String password}) async {
-    _setLoading(true);
-    _errorMessage = null;
-
-    try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-
-      await fetchUserData(credential.user!.uid);
-      _setLoading(false);
-      return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _getFriendlyAuthError(e);
-      _setLoading(false);
-      return false;
-    } catch (e) {
-      _errorMessage = 'Login error: $e';
-      _setLoading(false);
-      return false;
-    }
+    _setLoading(false);
+    return false;
   }
 
   Future<void> logout() async {
-    await _auth.signOut();
+    _api.token = null;
     _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
     notifyListeners();
   }
 
@@ -122,23 +105,4 @@ class AuthService extends ChangeNotifier {
     _isLoading = value;
     notifyListeners();
   }
-
-  String _getFriendlyAuthError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return 'No account registered with this email.';
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Incorrect email or password. Please try again.';
-      case 'email-already-in-use':
-        return 'An account already exists for this email address.';
-      case 'weak-password':
-        return 'The password is too weak. Please use at least 6 characters.';
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-      default:
-        return e.message ?? 'Authentication failed. Please try again.';
-    }
-  }
 }
-

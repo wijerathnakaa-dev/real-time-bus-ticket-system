@@ -58,9 +58,9 @@ class _GpsDiagnosticScreenState extends State<GpsDiagnosticScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.occupiedRed.withOpacity(0.1),
+                  color: AppTheme.occupiedRed.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.occupiedRed.withOpacity(0.3)),
+                  border: Border.all(color: AppTheme.occupiedRed.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -94,8 +94,8 @@ class _GpsDiagnosticScreenState extends State<GpsDiagnosticScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: loc != null
-                                ? AppTheme.accentGreen.withOpacity(0.15)
-                                : Colors.amber.withOpacity(0.15),
+                                ? AppTheme.accentGreen.withValues(alpha: 0.15)
+                                : Colors.amber.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(

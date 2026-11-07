@@ -1,264 +1,207 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../core/api/api_client.dart';
+import '../../core/theme/app_theme.dart';
 import '../../models/bus_model.dart';
+import '../../models/eta_model.dart';
 import '../authentication/auth_service.dart';
 import '../buses/bus_service.dart';
 import '../gps/location_service.dart';
-import '../../core/theme/app_theme.dart';
-import 'conductor_seat_map_screen.dart';
 import '../tracking/gps_diagnostic_screen.dart';
+import 'bus_setup_screen.dart';
+import 'conductor_manifest_screen.dart';
+import 'conductor_seat_map_screen.dart';
+import 'conductor_trip_screen.dart';
 
-class ConductorHomeScreen extends StatelessWidget {
+class ConductorHomeScreen extends StatefulWidget {
   const ConductorHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final user = authService.currentUser;
-    final busId = user?.assignedBusId;
+  State<ConductorHomeScreen> createState() => _ConductorHomeScreenState();
+}
 
-    if (busId == null || busId.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Conductor Mode'),
-          backgroundColor: AppTheme.primaryDark,
+class _ConductorHomeScreenState extends State<ConductorHomeScreen> {
+  final _service = BusService();
+  late Future<BusModel?> _bus = _service.getMyBus();
+  bool _busy = false;
+
+  void _reload() => setState(() => _bus = _service.getMyBus());
+
+  Future<void> _toggleTrip(BusModel bus) async {
+    final loc = Provider.of<LocationService>(context, listen: false);
+    final start = !bus.onTrip;
+    if (!start) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('End trip?'),
+          content: const Text('All active tickets are completed and every seat is freed for the next trip.'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Logout',
-              onPressed: () => authService.logout(),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('End trip')),
           ],
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.directions_bus_filled_outlined, size: 72, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text(
-                  'No Bus Assigned',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Your conductor account (${user?.email}) is not yet linked to an active vehicle.\n\nPlease contact your fleet dispatcher or administrator to set your assignedBusId in Firestore.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => authService.fetchUserData(user?.uid ?? ''),
-                  child: const Text('RECHECK ASSIGNMENT'),
-                ),
-              ],
-            ),
-          ),
-        ),
       );
+      if (ok != true) return;
     }
-
-    return FutureBuilder<BusModel?>(
-      future: BusService().getBusById(busId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final assignedBus = snapshot.data;
-        if (assignedBus == null) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Conductor Mode'),
-              backgroundColor: AppTheme.primaryDark,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: () => authService.logout(),
-                ),
-              ],
-            ),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text('Assigned bus "$busId" was not found in the fleet database.'),
-              ),
-            ),
-          );
-        }
-
-        final locationService = Provider.of<LocationService>(context);
-        final isBroadcasting = locationService.isBroadcastingFor(assignedBus.id);
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('CityBus Go — Conductor'),
-            backgroundColor: AppTheme.primaryDark,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout),
-                tooltip: 'Logout',
-                onPressed: () => authService.logout(),
-              ),
-            ],
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  color: AppTheme.primaryDark.withOpacity(0.08),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          backgroundColor: AppTheme.primaryDark,
-                          foregroundColor: Colors.white,
-                          radius: 26,
-                          child: Icon(Icons.badge_outlined, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Conductor: ${user?.name ?? "Officer"}',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryDark,
-                                ),
-                              ),
-                              Text(
-                                user?.email ?? '',
-                                style: const TextStyle(color: Colors.black54, fontSize: 13),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'Assigned: ${assignedBus.plateNumber} (Route ${assignedBus.routeNumber})',
-                                  style: const TextStyle(
-                                    color: Colors.deepOrange,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Route ${assignedBus.routeNumber} Controls',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                _buildActionTile(
-                  context,
-                  icon: Icons.event_seat_rounded,
-                  title: 'Seat Map & Walk-in Ticketing',
-                  subtitle: 'Live seat grid & passenger boarding/departing controls',
-                  color: AppTheme.accentGreen,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ConductorSeatMapScreen(
-                          bus: assignedBus,
-                          conductorId: user!.uid,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildActionTile(
-                  context,
-                  icon: isBroadcasting ? Icons.cell_tower : Icons.location_on_outlined,
-                  title: isBroadcasting ? 'Broadcasting Bus GPS (Active)' : 'Start GPS Broadcast',
-                  subtitle: isBroadcasting
-                      ? 'Live location streaming to passengers every 10m'
-                      : 'Broadcast device GPS to bus_locations collection',
-                  color: isBroadcasting ? AppTheme.accentGreen : Colors.teal,
-                  trailing: Switch(
-                    value: isBroadcasting,
-                    activeColor: AppTheme.accentGreen,
-                    onChanged: (enabled) {
-                      if (enabled) {
-                        locationService.startTracking(busId: assignedBus.id);
-                      } else {
-                        locationService.stopTracking();
-                      }
-                    },
-                  ),
-                  onTap: () {
-                    if (!isBroadcasting) {
-                      locationService.startTracking(busId: assignedBus.id);
-                    } else {
-                      locationService.stopTracking();
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildActionTile(
-                  context,
-                  icon: Icons.speed,
-                  title: 'GPS Diagnostics Tool',
-                  subtitle: 'View raw GPS coordinates, accuracy, and latency',
-                  color: Colors.blueGrey,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const GpsDiagnosticScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    setState(() => _busy = true);
+    try {
+      await _service.setTrip(bus.id, start: start);
+      if (start) {
+        await loc.startTracking(busId: bus.id);
+      } else {
+        loc.stopTracking();
+      }
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.occupiedRed));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Widget _buildActionTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    Widget? trailing,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
-          child: Icon(icon, color: color),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-        trailing: trailing ?? const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
+  @override
+  Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
+    final user = auth.currentUser;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('CityBus Go - Conductor'),
+        backgroundColor: AppTheme.primaryDark,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _reload),
+          IconButton(icon: const Icon(Icons.logout), tooltip: 'Logout', onPressed: () => auth.logout()),
+        ],
+      ),
+      body: FutureBuilder<BusModel?>(
+        future: _bus,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+          if (snap.hasError) return _message(Icons.cloud_off, 'Cannot load your bus', snap.error.toString(), 'RETRY', _reload);
+          final bus = snap.data;
+          if (bus == null) {
+            return _message(Icons.directions_bus_filled_outlined, 'Set up your bus',
+                'Register the bus you operate (number plate, seats and route). An admin approves it before ticketing starts.', 'SET UP BUS', () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BusSetupScreen()));
+              await auth.refreshProfile();
+              _reload();
+            });
+          }
+          return _dashboard(bus, user?.name ?? 'Conductor');
+        },
       ),
     );
   }
+
+  Widget _dashboard(BusModel bus, String name) {
+    final loc = Provider.of<LocationService>(context);
+    final broadcasting = loc.isBroadcastingFor(bus.id);
+    return RefreshIndicator(
+      onRefresh: () async => _reload(),
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Card(
+            color: AppTheme.primaryDark.withValues(alpha: 0.08),
+            child: ListTile(
+              leading: const CircleAvatar(backgroundColor: AppTheme.primaryDark, foregroundColor: Colors.white, child: Icon(Icons.badge_outlined)),
+              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${bus.plateNumber} - Route ${bus.routeNumber.isEmpty ? '(none)' : bus.routeNumber}\n${bus.routeName}'),
+              isThreeLine: true,
+              trailing: IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: 'Edit bus profile / route',
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusSetupScreen(existing: bus)));
+                  _reload();
+                },
+              ),
+            ),
+          ),
+          if (!bus.approved)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+              child: const Text('Waiting for admin approval. Passengers cannot see or book this bus until it is approved.'),
+            ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: bus.onTrip ? AppTheme.occupiedRed : AppTheme.accentGreen, minimumSize: const Size.fromHeight(54)),
+            onPressed: _busy || bus.routeId == null ? null : () => _toggleTrip(bus),
+            icon: Icon(bus.onTrip ? Icons.stop_circle : Icons.play_circle),
+            label: Text(bus.onTrip ? 'END TRIP' : 'START TRIP'),
+          ),
+          if (bus.routeId == null) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Assign a route to start a trip.', style: TextStyle(color: Colors.black54))),
+          const SizedBox(height: 12),
+          Card(
+            child: SwitchListTile(
+              value: broadcasting,
+              activeThumbColor: AppTheme.accentGreen,
+              secondary: Icon(broadcasting ? Icons.cell_tower : Icons.location_off, color: broadcasting ? AppTheme.accentGreen : Colors.grey),
+              title: Text(broadcasting ? 'Broadcasting GPS' : 'GPS broadcast off', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(broadcasting
+                  ? '${loc.sentCount} updates sent${loc.errorMessage != null ? ' - ${loc.errorMessage}' : ''}'
+                  : 'Turn on so passengers see the bus and arrival times'),
+              onChanged: (on) => on ? loc.startTracking(busId: bus.id) : loc.stopTracking(),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _tile(Icons.event_seat_rounded, 'Seat map & ticketing', 'Issue cash tickets, free seats when passengers get off', AppTheme.accentGreen,
+              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConductorSeatMapScreen(bus: bus)))),
+          _tile(Icons.timeline, 'Stops & departures', 'Confirm arrival/departure at each stop', AppTheme.primaryBlue,
+              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConductorTripScreen(bus: bus)))),
+          _tile(Icons.people_alt_outlined, 'Passengers & ticket check', 'Advance bookings, manifest, verify a ticket number', Colors.deepPurple,
+              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConductorManifestScreen(bus: bus)))),
+          _tile(Icons.speed, 'GPS diagnostics', 'Raw coordinates and accuracy', Colors.blueGrey,
+              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GpsDiagnosticScreen()))),
+          const SizedBox(height: 8),
+          StreamBuilder<BusEta>(
+            stream: _service.streamEta(bus.id),
+            builder: (context, s) {
+              final next = s.data?.nextStop;
+              if (next == null) return const SizedBox.shrink();
+              return Card(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+                child: ListTile(
+                  leading: const Icon(Icons.flag, color: AppTheme.primaryBlue),
+                  title: Text('Next stop: ${next.stopName}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(next.etaMinutes != null ? 'About ${next.etaMinutes!.toStringAsFixed(0)} min - ${next.distanceKm} km' : 'Waiting for GPS'),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(IconData icon, String title, String subtitle, Color color, VoidCallback onTap) => Card(
+        child: ListTile(
+          leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color)),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: onTap,
+        ),
+      );
+
+  Widget _message(IconData icon, String title, String body, String action, VoidCallback onTap) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 72, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
+              const SizedBox(height: 24),
+              ElevatedButton(onPressed: onTap, child: Text(action)),
+            ],
+          ),
+        ),
+      );
 }

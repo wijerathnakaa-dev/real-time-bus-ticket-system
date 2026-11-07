@@ -96,8 +96,9 @@ class SeatGridWidget extends StatelessWidget {
     }
 
     return GestureDetector(
+      // Passengers can only pick free seats; conductors also tap taken seats to free them.
       onTap: () {
-        if (!isTaken) {
+        if (!isTaken || isConductorView) {
           onSeatSelected(seat.seatNumber);
         }
       },
@@ -110,7 +111,7 @@ class SeatGridWidget extends StatelessWidget {
           boxShadow: [
             if (isSelected)
               BoxShadow(
-                color: AppTheme.selectedSeat.withOpacity(0.5),
+                color: AppTheme.selectedSeat.withValues(alpha: 0.5),
                 blurRadius: 8,
                 spreadRadius: 2,
               ),

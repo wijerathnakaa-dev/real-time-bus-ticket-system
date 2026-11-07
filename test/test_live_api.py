@@ -1,71 +1,59 @@
-import urllib.request
+"""Quick smoke walk-through of the live API (backend running with demo data).
+
+    python test/test_live_api.py            # http://127.0.0.1:5000
+    API_URL=http://127.0.0.1:5055 python test/test_live_api.py
+"""
 import json
+import os
+import urllib.request
 
-BASE_URL = "http://127.0.0.1:5000"
+BASE = os.environ.get("API_URL", "http://127.0.0.1:5000").rstrip("/")
 
-def test_api():
+
+def call(method, path, body=None, token=None):
+    req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body is not None else None, method=method)
+    req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read() or b"null")
+
+
+def main():
     print("=" * 60)
-    print("TESTING REAL-TIME BUS SYSTEM BACKEND API & LIFECYCLE")
+    print("REAL-TIME BUS SYSTEM - LIVE API WALK-THROUGH")
     print("=" * 60)
+    h = call("GET", "/api/health")
+    print(f"1. Health: {h['status'].upper()} - database {h['database']}")
 
-    # 1. Health check
-    req = urllib.request.Request(f"{BASE_URL}/api/health")
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read().decode())
-        print(f"1. Health Check: {data['status'].upper()} ({data['service']})")
+    buses = call("GET", "/api/v1/buses")
+    print(f"\n2. Fleet: {len(buses)} approved buses")
+    for b in buses:
+        print(f"   - {b['plate_number']} route {b['route_number']} {b['route_name']} | {b['available_seats']}/{b['total_seats']} free | {b['status']}")
 
-    # 2. Get active fleet
-    req = urllib.request.Request(f"{BASE_URL}/api/v1/buses")
-    with urllib.request.urlopen(req) as resp:
-        buses = json.loads(resp.read().decode())
-        print(f"\n2. Fleet Lookup: Found {len(buses)} active buses")
-        for b in buses:
-            print(f"   - Bus {b['plate_number']} (Route {b['route_number']} {b['route_name']}) | Fare: Rs. {b['standard_fare']} | Seats Free: {b['available_seats']}/{b['total_seats']}")
+    pax = call("POST", "/api/v1/auth/login", {"email": "passenger@citybus.lk", "password": "Passenger@123"})["token"]
+    cond = call("POST", "/api/v1/auth/login", {"email": "conductor1@citybus.lk", "password": "Conductor@123"})["token"]
+    seats = call("GET", "/api/v1/buses/bus_nb2451/seats")
+    seat = next(s["seat_number"] for s in reversed(seats) if s["status"] == "available")
+    t = call("POST", "/api/v1/tickets", {"bus_id": "bus_nb2451", "seat_number": seat, "from_stop_id": "route_ex01_s2", "to_stop_id": "route_ex01_s5"}, pax)
+    print(f"\n3. Passenger booked seat #{t['seat_number']} on {t['bus_plate_number']}: {t['ticket_number']} Rs. {t['fare']} ({t['payment_status']})")
+    mode = call("POST", "/api/v1/payments/start", {"ticket_id": t["id"]}, pax)["mode"]
+    if mode == "simulated":
+        t = call("POST", "/api/v1/payments/simulate", {"ticket_id": t["id"]}, pax)
+        print(f"   Paid (simulated PayHere): {t['payment_status']}")
+    else:
+        print(f"   PayHere {mode} checkout ready - complete it in the app")
 
-    # 3. Passenger registers & books seat #18
-    booking_payload = json.dumps({
-        "bus_id": "bus_WP_ND_1024",
-        "bus_plate_number": "WP-ND-1024",
-        "route_number": "138",
-        "seat_number": "18",
-        "passenger_id": "pass_101",
-        "passenger_name": "Alex Fernando",
-        "fare": 150.0
-    }).encode('utf-8')
+    eta = call("GET", "/api/v1/buses/bus_nb2451/eta")
+    nxt = next((s for s in eta["stops"] if s["stop_id"] == eta.get("next_stop_id")), None)
+    if nxt:
+        print(f"\n4. Next stop {nxt['stop_name']} in {nxt.get('eta_minutes')} min")
 
-    req = urllib.request.Request(
-        f"{BASE_URL}/api/v1/tickets/book",
-        data=booking_payload,
-        headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req) as resp:
-        tkt = json.loads(resp.read().decode())
-        print(f"\n3. Transactional Ticket Booking: SUCCESS")
-        print(f"   - Generated Ticket ID: {tkt['ticket_id']}")
-        print(f"   - Seat Reserved: #{tkt['seat_number']} on {tkt['bus_plate_number']}")
-        print(f"   - Passenger: {tkt['passenger_name']} | Fare: Rs. {tkt['fare']} | Status: {tkt['status']}")
-
-    # 4. Conductor frees seat #18 when passenger disembarks
-    release_payload = json.dumps({
-        "bus_id": "bus_WP_ND_1024",
-        "seat_number": "18"
-    }).encode('utf-8')
-
-    req = urllib.request.Request(
-        f"{BASE_URL}/api/v1/seats/release",
-        data=release_payload,
-        headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req) as resp:
-        rel = json.loads(resp.read().decode())
-        print(f"\n4. Conductor Seat Freeing (Release): SUCCESS")
-        print(f"   - Bus: {rel['bus_id']}")
-        print(f"   - Seat #{rel['seat_number']} Status: {rel['status'].upper()}")
-
+    call("POST", "/api/v1/seats/release", {"bus_id": "bus_nb2451", "seat_number": seat}, cond)
+    print(f"\n5. Conductor freed seat #{seat} when the passenger got off")
     print("\n" + "=" * 60)
-    print("ALL API ENDPOINTS AND TRANSACTION LIFECYCLES PASSED")
-    print("=" * 60)
+    print("WALK-THROUGH COMPLETE")
+
 
 if __name__ == "__main__":
-    test_api()
-
+    main()
