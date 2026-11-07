@@ -1,29 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../core/api/api_client.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_theme.dart';
 import '../../models/ticket_model.dart';
 import '../tickets/ticket_service.dart';
-import '../../core/theme/app_theme.dart';
+import 'payment_screen.dart';
+import 'ticket_confirmation_screen.dart';
 
-class MyTicketsScreen extends StatelessWidget {
+class MyTicketsScreen extends StatefulWidget {
   final String passengerId;
-
   const MyTicketsScreen({super.key, required this.passengerId});
 
   @override
-  Widget build(BuildContext context) {
-    final ticketService = TicketService();
+  State<MyTicketsScreen> createState() => _MyTicketsScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Booked Tickets'),
+class _MyTicketsScreenState extends State<MyTicketsScreen> {
+  final _service = TicketService();
+  late final Stream<List<TicketModel>> _tickets = _service.streamPassengerTickets(widget.passengerId);
+
+  Future<void> _cancel(TicketModel t) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Cancel ticket ${t.ticketId}?'),
+        content: Text(t.paymentStatus == 'paid' ? 'Seat #${t.seatNumber} is released and the fare is marked for refund.' : 'Seat #${t.seatNumber} is released.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancel ticket')),
+        ],
       ),
-      body: StreamBuilder<List<TicketModel>>(
-        stream: ticketService.streamPassengerTickets(passengerId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    );
+    if (ok != true) return;
+    try {
+      await _service.cancel(t.id);
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
 
-          final tickets = snapshot.data ?? [];
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('My tickets')),
+      body: StreamBuilder<List<TicketModel>>(
+        stream: _tickets,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(snapshot.error.toString())));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final tickets = snapshot.data!;
           if (tickets.isEmpty) {
             return const Center(
               child: Column(
@@ -36,35 +63,53 @@ class MyTicketsScreen extends StatelessWidget {
               ),
             );
           }
-
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: tickets.length,
-            itemBuilder: (context, index) {
-              final tkt = tickets[index];
+            itemBuilder: (context, i) {
+              final t = tickets[i];
+              final (label, color) = switch ((t.status, t.paymentStatus)) {
+                ('active', 'paid') => ('VALID', AppTheme.accentGreen),
+                ('active', _) => ('PAY NOW', Colors.orange),
+                ('completed', _) => ('COMPLETED', Colors.blueGrey),
+                (_, 'refunded') => ('REFUNDED', Colors.grey),
+                _ => (t.status.toUpperCase(), Colors.grey),
+              };
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppTheme.primaryBlue,
+                  leading: CircleAvatar(
+                    backgroundColor: t.isActive ? AppTheme.primaryBlue : Colors.grey.shade400,
                     foregroundColor: Colors.white,
-                    child: Icon(Icons.confirmation_num_rounded),
+                    child: Text(t.seatNumber),
                   ),
-                  title: Text('${tkt.ticketId} • Seat #${tkt.seatNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${tkt.busPlateNumber} (Route ${tkt.routeNumber})\nFare: Rs. ${tkt.fare.toStringAsFixed(2)}'),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentGreen.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      tkt.paymentStatus.toUpperCase(),
-                      style: const TextStyle(color: AppTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 11),
-                    ),
+                  title: Text('${t.busPlateNumber} - Seat #${t.seatNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    '${t.fromStopName ?? 'Route ${t.routeNumber}'}${t.toStopName != null ? ' to ${t.toStopName}' : ''}\n'
+                    '${AppConstants.money(t.fare)} - ${DateFormat('d MMM, h:mm a').format(t.issuedAt)}',
                   ),
+                  isThreeLine: true,
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+                      ),
+                      if (t.isActive)
+                        InkWell(
+                          onTap: () => _cancel(t),
+                          child: const Padding(padding: EdgeInsets.only(top: 6), child: Text('Cancel', style: TextStyle(fontSize: 12, color: AppTheme.occupiedRed))),
+                        ),
+                    ],
+                  ),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => t.awaitingPayment ? PaymentScreen(ticket: t) : TicketConfirmationScreen(ticket: t, fromHistory: true),
+                  )),
                 ),
               );
             },
@@ -74,4 +119,3 @@ class MyTicketsScreen extends StatelessWidget {
     );
   }
 }
-

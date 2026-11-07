@@ -4,7 +4,7 @@ import '../buses/bus_service.dart';
 import '../buses/number_plate_ocr_service.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../core/theme/app_theme.dart';
-import 'seat_map_screen.dart';
+import 'bus_tracking_screen.dart';
 
 class FindBusScreen extends StatefulWidget {
   final String passengerId;
@@ -53,7 +53,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
 
       if (bus == null) {
         setState(() {
-          _errorMessage = 'Bus "$plate" was not found in active fleet.';
+          _errorMessage = 'No approved bus with plate "$plate" was found.';
           _isLoading = false;
         });
         return;
@@ -62,11 +62,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
       setState(() => _isLoading = false);
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => SeatMapScreen(
-            bus: bus,
-            passengerId: widget.passengerId,
-            passengerName: widget.passengerName,
-          ),
+          builder: (_) => BusTrackingScreen(bus: bus),
         ),
       );
     } catch (e) {
@@ -120,7 +116,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Enter registration plate or scan the vehicle plate photo (RTBT-17).',
+                'Type the number plate (e.g. NB-2451) or scan it with the camera.',
                 style: TextStyle(color: Colors.black54, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -141,7 +137,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
                 textCapitalization: TextCapitalization.characters,
                 decoration: InputDecoration(
                   labelText: 'Bus Plate Number',
-                  hintText: 'e.g. WP-ND-1024',
+                  hintText: 'e.g. NB-2451',
                   prefixIcon: const Icon(Icons.directions_bus),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.camera_alt, color: AppTheme.primaryBlue),
@@ -165,7 +161,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
 
               const SizedBox(height: 30),
               const Text(
-                'Active Fleet Buses (Live from Firestore):',
+                'Buses in service (live):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 10),
@@ -173,7 +169,10 @@ class _FindBusScreenState extends State<FindBusScreen> {
               StreamBuilder<List<BusModel>>(
                 stream: _busService.streamActiveBuses(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.hasError) {
+                    return Text(snapshot.error.toString(), style: const TextStyle(color: AppTheme.occupiedRed));
+                  }
+                  if (!snapshot.hasData) {
                     return const Center(child: Padding(
                       padding: EdgeInsets.all(16.0),
                       child: CircularProgressIndicator(),
@@ -189,7 +188,7 @@ class _FindBusScreenState extends State<FindBusScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
-                        'No active buses in fleet yet. Run "node scripts/seed.js" to populate initial vehicles.',
+                        'No buses in service yet.',
                         style: TextStyle(color: Colors.black54, fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
@@ -208,12 +207,11 @@ class _FindBusScreenState extends State<FindBusScreen> {
                         child: ListTile(
                           leading: const Icon(Icons.airport_shuttle, color: AppTheme.primaryBlue),
                           title: Text(bus.plateNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('Route ${bus.routeNumber} • Status: ${bus.status}'),
+                          subtitle: Text('Route ${bus.routeNumber} - ${bus.onTrip ? '${bus.availableSeats} seats free' : 'not on a trip'}'),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                          onTap: () {
-                            _plateController.text = bus.plateNumber;
-                            _searchBus(bus.plateNumber);
-                          },
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => BusTrackingScreen(bus: bus)),
+                          ),
                         ),
                       );
                     },

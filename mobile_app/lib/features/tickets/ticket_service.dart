@@ -1,123 +1,175 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/api/api_client.dart';
+import '../../core/api/live_socket.dart';
 import '../../models/ticket_model.dart';
-import '../../core/constants/app_constants.dart';
 
+class PaymentStart {
+  final String mode; // simulated | sandbox | live
+  final String? checkoutUrl;
+  PaymentStart(this.mode, this.checkoutUrl);
+  bool get isSimulated => mode == 'simulated';
+}
+
+/// Ticketing and PayHere payments. Seat locking is done atomically by the server
+/// (SELECT ... FOR UPDATE), so a lost race surfaces as ApiException.isConflict.
 class TicketService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiClient _api = ApiClient.instance;
 
-  // Atomic transactional booking for Passenger (RTBT-19) and Conductor (RTBT-20)
+  /// Passenger books in-app (pending until paid) or conductor issues a cash ticket.
   Future<TicketModel> bookSeat({
     required String busId,
-    required String busPlateNumber,
-    required String routeNumber,
     required String seatNumber,
-    required String passengerId,
-    required String passengerName,
-    required String issuedByRole,
-    String? conductorId,
+    String? fromStopId,
+    String? toStopId,
+    String? passengerName,
     String? passengerPhone,
-    required double fare,
-    String paymentMethod = 'cash',
-  }) async {
-    final seatRef = _firestore
-        .collection(AppConstants.colBuses)
-        .doc(busId)
-        .collection(AppConstants.colSeats)
-        .doc(seatNumber);
-    final ticketRef = _firestore.collection(AppConstants.colTickets).doc();
+  }) async =>
+      TicketModel.fromJson(await _api.post('/tickets', {
+        'bus_id': busId,
+        'seat_number': seatNumber,
+        if (fromStopId != null) 'from_stop_id': fromStopId,
+        if (toStopId != null) 'to_stop_id': toStopId,
+        if (passengerName != null) 'passenger_name': passengerName,
+        if (passengerPhone != null) 'passenger_phone': passengerPhone,
+      }) as Map<String, dynamic>);
 
-    final ticketNumber = 'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+  Future<TicketModel> getTicket(String id) async => TicketModel.fromJson(await _api.get('/tickets/$id') as Map<String, dynamic>);
 
-    return await _firestore.runTransaction((transaction) async {
-      final seatSnapshot = await transaction.get(seatRef);
+  Future<List<TicketModel>> myTickets() async =>
+      ((await _api.get('/tickets/mine')) as List).map((t) => TicketModel.fromJson(t as Map<String, dynamic>)).toList();
 
-      if (!seatSnapshot.exists) {
-        throw Exception('Seat $seatNumber does not exist on bus $busPlateNumber.');
-      }
+  Future<List<TicketModel>> busTickets(String busId, {String? status}) async =>
+      ((await _api.get('/tickets', query: {'bus_id': busId, if (status != null) 'status': status})) as List)
+          .map((t) => TicketModel.fromJson(t as Map<String, dynamic>))
+          .toList();
 
-      final currentStatus = seatSnapshot.get('status') as String? ?? 'available';
-      if (currentStatus == AppConstants.seatTaken) {
-        throw Exception('Seat $seatNumber is already occupied! Please choose another seat.');
-      }
+  Future<TicketModel> cancel(String ticketId) async => TicketModel.fromJson(await _api.post('/tickets/$ticketId/cancel') as Map<String, dynamic>);
 
-      // Mark seat taken (atomic)
-      transaction.update(seatRef, {
-        'status': AppConstants.seatTaken,
-        'bookedBy': passengerId,
-        'bookedAt': FieldValue.serverTimestamp(),
-        'ticketId': ticketRef.id,
-      });
-
-      // Note: We do NOT update buses/{id}.availableSeats here.
-      // Free seats are computed dynamically from the seat stream to prevent drift and permission failures.
-
-      final newTicket = TicketModel(
-        id: ticketRef.id,
-        ticketId: ticketNumber,
-        busId: busId,
-        busPlateNumber: busPlateNumber,
-        routeNumber: routeNumber,
-        seatNumber: seatNumber,
-        passengerId: passengerId,
-        passengerName: passengerName,
-        passengerPhone: passengerPhone,
-        issuedByRole: issuedByRole,
-        conductorId: conductorId,
-        fare: fare,
-        paymentStatus: 'paid',
-        paymentMethod: paymentMethod,
-        issuedAt: DateTime.now(),
-      );
-
-      transaction.set(ticketRef, newTicket.toMap());
-      return newTicket;
-    });
+  /// Conductor verifies a passenger's QR / ticket number. Returns (valid, ticket).
+  Future<(bool, TicketModel)> verify(String ticketNumber) async {
+    final res = await _api.get('/tickets/verify/${Uri.encodeComponent(ticketNumber.trim().toUpperCase())}') as Map<String, dynamic>;
+    return (res['valid'] == true, TicketModel.fromJson(res['ticket'] as Map<String, dynamic>));
   }
 
-  // Release a seat when passenger gets off or between trips (Conductor only)
-  Future<void> releaseSeat({
-    required String busId,
-    required String seatNumber,
-  }) async {
-    final seatRef = _firestore
-        .collection(AppConstants.colBuses)
-        .doc(busId)
-        .collection(AppConstants.colSeats)
-        .doc(seatNumber);
+  /// Conductor frees the seat when the passenger alights.
+  Future<void> releaseSeat({required String busId, required String seatNumber}) =>
+      _api.post('/seats/release', {'bus_id': busId, 'seat_number': seatNumber});
 
-    await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(seatRef);
-      if (!snap.exists || snap.get('status') != AppConstants.seatTaken) return;
-      tx.update(seatRef, {
-        'status': AppConstants.seatAvailable,
-        'bookedBy': null,
-        'bookedAt': null,
-        'ticketId': null,
-      });
-    });
+  Future<void> overrideSeat({required String busId, required String seatNumber, required bool taken}) =>
+      _api.post('/seats/override', {'bus_id': busId, 'seat_number': seatNumber, 'status': taken ? 'taken' : 'available'});
+
+  // ----- PayHere -----
+
+  Future<PaymentStart> startPayment(String ticketId) async {
+    final res = await _api.post('/payments/start', {'ticket_id': ticketId}) as Map<String, dynamic>;
+    return PaymentStart(res['mode'] as String, res['checkout_url'] as String?);
   }
 
-  // Stream tickets for Passenger (My Tickets)
+  /// Opens PayHere's hosted checkout in the browser (sandbox or live).
+  Future<bool> openCheckout(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
+  /// Demo mode only (server has no PayHere merchant configured).
+  Future<TicketModel> simulatePayment(String ticketId) async =>
+      TicketModel.fromJson(await _api.post('/payments/simulate', {'ticket_id': ticketId}) as Map<String, dynamic>);
+
+  /// Waits for PayHere's server callback to mark the ticket paid (or failed).
+  Stream<TicketModel> watchTicket(TicketModel ticket) {
+    late StreamController<TicketModel> ctrl;
+    LiveSocket? socket;
+    StreamSubscription? sub;
+    Timer? poll;
+    Future<void> reload() async {
+      try {
+        final t = await getTicket(ticket.id);
+        if (!ctrl.isClosed) ctrl.add(t);
+      } catch (_) {}
+    }
+
+    ctrl = StreamController<TicketModel>(
+      onListen: () {
+        reload();
+        socket = LiveSocket(busId: ticket.busId);
+        sub = socket!.events.listen((e) {
+          if (e['ticket_id'] == ticket.id || e['type'] == 'resync') reload();
+        });
+        poll = Timer.periodic(const Duration(seconds: 5), (_) => reload());
+      },
+      onCancel: () {
+        poll?.cancel();
+        sub?.cancel();
+        socket?.close();
+      },
+    );
+    return ctrl.stream;
+  }
+
+  /// Passenger's tickets, refreshed on payment / seat events for buses they ride.
   Stream<List<TicketModel>> streamPassengerTickets(String passengerId) {
-    return _firestore
-        .collection(AppConstants.colTickets)
-        .where('passengerId', isEqualTo: passengerId)
-        .orderBy('issuedAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TicketModel.fromFirestore(doc))
-            .toList());
+    late StreamController<List<TicketModel>> ctrl;
+    LiveSocket? socket;
+    StreamSubscription? sub;
+    Timer? debounce;
+    Future<void> reload() async {
+      try {
+        final t = await myTickets();
+        if (!ctrl.isClosed) ctrl.add(t);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    ctrl = StreamController<List<TicketModel>>(
+      onListen: () {
+        reload();
+        socket = LiveSocket();
+        sub = socket!.events.listen((e) {
+          final t = e['type'];
+          if (t == 'ticket_paid' || t == 'seat_released' || t == 'trip_end' || t == 'resync') {
+            debounce?.cancel();
+            debounce = Timer(const Duration(milliseconds: 500), reload);
+          }
+        });
+      },
+      onCancel: () {
+        debounce?.cancel();
+        sub?.cancel();
+        socket?.close();
+      },
+    );
+    return ctrl.stream;
   }
 
-  // Stream tickets for Conductor (Trip Manifest)
+  /// Conductor's trip manifest (active tickets), refreshed on seat events.
   Stream<List<TicketModel>> streamBusTickets(String busId) {
-    return _firestore
-        .collection(AppConstants.colTickets)
-        .where('busId', isEqualTo: busId)
-        .orderBy('issuedAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TicketModel.fromFirestore(doc))
-            .toList());
+    late StreamController<List<TicketModel>> ctrl;
+    LiveSocket? socket;
+    StreamSubscription? sub;
+    Future<void> reload() async {
+      try {
+        final t = await busTickets(busId, status: 'active');
+        if (!ctrl.isClosed) ctrl.add(t);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    ctrl = StreamController<List<TicketModel>>(
+      onListen: () {
+        reload();
+        socket = LiveSocket(busId: busId);
+        sub = socket!.events.listen((e) {
+          final t = e['type'];
+          if (t == 'seat_booked' || t == 'seat_released' || t == 'ticket_paid' || t == 'trip_end' || t == 'resync') reload();
+        });
+      },
+      onCancel: () {
+        sub?.cancel();
+        socket?.close();
+      },
+    );
+    return ctrl.stream;
   }
 }
