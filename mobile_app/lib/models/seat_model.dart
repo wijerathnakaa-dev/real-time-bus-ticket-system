@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class SeatModel {
   final String seatNumber;
   final String status; // 'available' or 'taken'
@@ -17,24 +15,20 @@ class SeatModel {
 
   bool get isAvailable => status == 'available';
 
-  factory SeatModel.fromMap(Map<String, dynamic> map, String id) {
-    return SeatModel(
-      seatNumber: id,
-      status: map['status'] ?? 'available',
-      bookedBy: map['bookedBy'],
-      bookedAt: (map['bookedAt'] as Timestamp?)?.toDate(),
-      ticketId: map['ticketId'],
-    );
-  }
+  factory SeatModel.fromJson(Map<String, dynamic> j) => SeatModel(
+        seatNumber: j['seat_number'].toString(),
+        status: j['status'] ?? 'available',
+        bookedBy: j['booked_by'],
+        bookedAt: DateTime.tryParse(j['booked_at'] ?? ''),
+        ticketId: j['ticket_id'],
+      );
 
-  Map<String, dynamic> toMap() {
-    return {
-      'seatNumber': seatNumber,
-      'status': status,
-      'bookedBy': bookedBy,
-      'bookedAt': bookedAt != null ? Timestamp.fromDate(bookedAt!) : null,
-      'ticketId': ticketId,
-    };
-  }
+  /// Applies a live seat_booked / seat_released event.
+  SeatModel withStatus(String newStatus, {String? ticketId}) => SeatModel(
+        seatNumber: seatNumber,
+        status: newStatus,
+        bookedBy: newStatus == 'available' ? null : bookedBy,
+        bookedAt: newStatus == 'available' ? null : (bookedAt ?? DateTime.now()),
+        ticketId: newStatus == 'available' ? null : (ticketId ?? this.ticketId),
+      );
 }
-

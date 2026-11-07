@@ -1,4 +1,22 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+class StopModel {
+  final String id;
+  final String name;
+  final int sequence;
+  final double latitude;
+  final double longitude;
+
+  StopModel({required this.id, required this.name, required this.sequence, required this.latitude, required this.longitude});
+
+  factory StopModel.fromJson(Map<String, dynamic> j) => StopModel(
+        id: j['id'] ?? j['stop_id'] ?? '',
+        name: j['stop_name'] ?? '',
+        sequence: (j['stop_sequence'] as num?)?.toInt() ?? 0,
+        latitude: (j['latitude'] as num?)?.toDouble() ?? 0,
+        longitude: (j['longitude'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {'stop_name': name, 'latitude': latitude, 'longitude': longitude};
+}
 
 class RouteModel {
   final String id;
@@ -7,6 +25,8 @@ class RouteModel {
   final String destination;
   final double standardFare;
   final int estimatedDurationMins;
+  final List<StopModel> stops;
+  final int stopCount;
 
   RouteModel({
     required this.id,
@@ -15,28 +35,32 @@ class RouteModel {
     required this.destination,
     required this.standardFare,
     required this.estimatedDurationMins,
+    this.stops = const [],
+    this.stopCount = 0,
   });
 
-  factory RouteModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  String get name => '$origin - $destination';
+
+  factory RouteModel.fromJson(Map<String, dynamic> j) {
+    final stops = ((j['stops'] as List?) ?? []).map((s) => StopModel.fromJson(s as Map<String, dynamic>)).toList();
     return RouteModel(
-      id: doc.id,
-      routeNumber: data['routeNumber'] ?? '',
-      origin: data['origin'] ?? '',
-      destination: data['destination'] ?? '',
-      standardFare: (data['standardFare'] as num?)?.toDouble() ?? 150.0,
-      estimatedDurationMins: (data['estimatedDurationMins'] as num?)?.toInt() ?? 45,
+      id: j['id'] ?? '',
+      routeNumber: j['route_number'] ?? '',
+      origin: j['origin'] ?? '',
+      destination: j['destination'] ?? '',
+      standardFare: (j['standard_fare'] as num?)?.toDouble() ?? 0,
+      estimatedDurationMins: (j['estimated_duration_mins'] as num?)?.toInt() ?? 0,
+      stops: stops,
+      stopCount: (j['stop_count'] as num?)?.toInt() ?? stops.length,
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'routeNumber': routeNumber,
-      'origin': origin,
-      'destination': destination,
-      'standardFare': standardFare,
-      'estimatedDurationMins': estimatedDurationMins,
-    };
+  /// Mirrors the server's pro-rated fare so the passenger sees the price before booking.
+  double fareBetween(StopModel? from, StopModel? to) {
+    if (from == null || to == null || stops.length < 2 || to.sequence <= from.sequence) return standardFare;
+    final f = standardFare * (to.sequence - from.sequence) / (stops.length - 1);
+    final rounded = (f / 10).round() * 10.0;
+    final floor = (standardFare * 0.2).roundToDouble();
+    return rounded > floor ? rounded : floor;
   }
 }
-
