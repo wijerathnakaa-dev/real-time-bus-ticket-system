@@ -1,31 +1,33 @@
-version: '3.8'
-
 services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
+      MYSQL_DATABASE: bus_transit_db
+    ports:
+      # 3306 is often taken by a local MySQL install; override with MYSQL_HOST_PORT in .env
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 20
+
   backend:
     build:
       context: ../../backend
-      dockerfile: Dockerfile
+    environment:
+      PORT: "5000"
+      MYSQL_DSN: root:${MYSQL_ROOT_PASSWORD:-change_me}@tcp(mysql:3306)/bus_transit_db?parseTime=true
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_secret}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5000}
     ports:
       - "5000:5000"
-    environment:
-      - PORT=5000
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bus_transit_db
     depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=bus_transit_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ../../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      mysql:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
-
+  mysql_data:
