@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,24 +13,37 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+const (
+	writeWait  = 10 * time.Second
+	pongWait   = 60 * time.Second
+	pingPeriod = 50 * time.Second
+)
+
+// Client is one connected device. A client with busID == "" receives every event
+// (admin dashboard); otherwise only events for that bus.
 type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	hub   *Hub
+	conn  *websocket.Conn
+	send  chan []byte
+	busID string
+}
+
+type message struct {
+	busID string
+	data  []byte
 }
 
 type Hub struct {
 	clients    map[*Client]bool
-	broadcast  chan []byte
+	broadcast  chan message
 	register   chan *Client
 	unregister chan *Client
-	mutex      sync.Mutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte),
+		broadcast:  make(chan message, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
@@ -39,38 +52,44 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
-		case client := <-h.register:
-			h.mutex.Lock()
-			h.clients[client] = true
-			h.mutex.Unlock()
-		case client := <-h.unregister:
-			h.mutex.Lock()
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				close(client.send)
+		case c := <-h.register:
+			h.clients[c] = true
+		case c := <-h.unregister:
+			if _, ok := h.clients[c]; ok {
+				delete(h.clients, c)
+				close(c.send)
 			}
-			h.mutex.Unlock()
-		case message := <-h.broadcast:
-			h.mutex.Lock()
-			for client := range h.clients {
+		case m := <-h.broadcast:
+			for c := range h.clients {
+				if c.busID != "" && m.busID != "" && c.busID != m.busID {
+					continue
+				}
 				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
+				case c.send <- m.data:
+				default: // slow client: drop it, it will reconnect and resync
+					delete(h.clients, c)
+					close(c.send)
 				}
 			}
-			h.mutex.Unlock()
 		}
 	}
 }
 
-func (h *Hub) BroadcastJSON(v interface{}) {
+// BroadcastBus sends an event to subscribers of busID and to all-bus subscribers.
+func (h *Hub) BroadcastBus(busID string, v interface{}) {
 	data, err := json.Marshal(v)
-	if err == nil {
-		h.broadcast <- data
+	if err != nil {
+		return
+	}
+	select {
+	case h.broadcast <- message{busID: busID, data: data}:
+	default:
+		log.Println("[WebSocket] broadcast queue full, dropping event")
 	}
 }
+
+// BroadcastJSON sends an event to every client.
+func (h *Hub) BroadcastJSON(v interface{}) { h.BroadcastBus("", v) }
 
 func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -78,10 +97,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println("[WebSocket] Upgrade error:", err)
 		return
 	}
-
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), busID: r.URL.Query().Get("bus_id")}
 	hub.register <- client
-
 	go client.writePump()
 	go client.readPump()
 }
@@ -91,22 +108,38 @@ func (c *Client) readPump() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
+	c.conn.SetReadLimit(4096)
+	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { return c.conn.SetReadDeadline(time.Now().Add(pongWait)) })
 	for {
-		_, _, err := c.conn.ReadMessage()
-		if err != nil {
-			break
+		if _, _, err := c.conn.ReadMessage(); err != nil {
+			return
 		}
 	}
 }
 
 func (c *Client) writePump() {
+	ticker := time.NewTicker(pingPeriod)
 	defer func() {
+		ticker.Stop()
 		c.conn.Close()
 	}()
-	for message := range c.send {
-		err := c.conn.WriteMessage(websocket.TextMessage, message)
-		if err != nil {
-			break
+	for {
+		select {
+		case msg, ok := <-c.send:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
+				return
+			}
+			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		case <-ticker.C:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
