@@ -65,7 +65,7 @@ This checklist can be submitted to your university supervisor for formal Sprint 
 - [x] **Traceability:** Every requirement has a traceable Jira identifier (`RTBT-xx`).
 
 ### B. UI / UX Design & Accessibility
-- [x] **Intuitive Navigation:** Wireframes created for both Passenger ([`docs/wireframes-passenger.md`](./wireframes-passenger.md)) and Conductor ([`docs/wireframes-conductor.md`](./wireframes-conductor.md)).
+- [x] **Intuitive Navigation:** Wireframes created for both Passenger ([`docs/diagrams/wireframes-passenger.md`](../diagrams/wireframes-passenger.md)) and Conductor ([`docs/diagrams/wireframes-conductor.md`](../diagrams/wireframes-conductor.md)).
 - [x] **Visual Clarity:** Clear color coding established for seat map (Available = Green, Taken = Red, Selected = Blue).
 - [x] **Fail-Safe UI:** Mandatory loading indicators and friendly error handling designed for every screen.
 
