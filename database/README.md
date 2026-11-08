@@ -1,23 +1,14 @@
-# Database Configuration & Seed Instructions
+# Database
 
-This directory contains the database migration scripts, relational schema (`schema.sql`), and seed data for the Real-Time Bus System.
+The system of record is **MySQL 8**. `schema.sql` here is the reference copy of the schema; the
+backend embeds `backend/internal/database/schema.sql` and applies it automatically on start
+(it also creates the `bus_transit_db` database if it is missing).
 
-## Dual Database Architecture
-1. **Cloud Firestore (Primary Real-Time Engine):**
-   - Direct real-time client subscriptions for low-latency (<2-5s) seat map updates.
-   - Atomic seat reservations via Firestore transactions.
-   - Seeded via `scripts/seed.js` using `seed_data.json`.
-
-2. **PostgreSQL Relational Schema (`database/schema.sql`):**
-   - For historical auditing, trip reconciliation, and complex multi-stop transit reporting.
-
-## Setup Instructions (PostgreSQL)
+## Run MySQL locally with Docker
+Set `MYSQL_ROOT_PASSWORD` and `MYSQL_HOST_PORT` (e.g. 3308) in `deployment/docker/.env`, then:
 ```bash
-# Connect to PostgreSQL and create database
-psql -U postgres
-CREATE DATABASE bus_transit_db;
-
-# Run schema
-psql -U postgres -d bus_transit_db -f database/schema.sql
+cd deployment/docker && docker compose up -d mysql
 ```
-
+Point `MYSQL_DSN` in `backend/.env` at `127.0.0.1:<MYSQL_HOST_PORT>` and start the backend
+(`go run ./cmd/server`). With `SEED_DEMO_DATA=true` an empty database gets the demo users,
+routes and buses listed in the main README.
