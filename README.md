@@ -60,7 +60,7 @@ flutter build apk --release
 | Conductor (bus NC-7832, Colombo Fort → Katunayake) | conductor2@citybus.lk | Conductor@123 |
 | Passenger | passenger@citybus.lk | Passenger@123 |
 
-Change these or set `SEED_DEMO_DATA=false` before any real deployment.
+Change these or set `SEED_DEMO_DATA=false` before any real deployment..
 
 ## Optional integrations
 
