@@ -64,7 +64,7 @@ Change these or set `SEED_DEMO_DATA=false` before any real deployment.
 
 ## Optional integrations
 
-| Integration | How to turn it on | Without it |
+| Integration | How to turn it on | Without it ||
 |---|---|---|
 | Firebase RTDB + FCM push | Put the service-account JSON at `backend/firebase-service-account.json`, set `FIREBASE_DATABASE_URL`; put `google-services.json` in `mobile_app/android/app/` | Live data still flows over WebSocket; no push notifications |
 | PayHere | Set `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET` (and `PAYHERE_SANDBOX=true`) in `backend/.env`; `PUBLIC_BASE_URL` must be reachable by PayHere for the notify callback | Clearly-labelled simulated payment |
