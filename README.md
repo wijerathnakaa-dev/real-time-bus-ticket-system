@@ -41,7 +41,7 @@ Check: `http://localhost:5000/api/health`
 cd admin_web
 npm install
 npm run dev                 # http://localhost:5173  (API URL in admin_web/.env, see .env.example)
-```
+```'
 
 ### 3. Mobile app
 ```bash
